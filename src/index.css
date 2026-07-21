@@ -1,0 +1,99 @@
+/* stylelint-disable at-rule-no-unknown */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* stylelint-enable at-rule-no-unknown */
+
+/* ============================================================================
+   Theme tokens — light (default) and dark. All values are space-separated
+   RGB triples (not hex) so Tailwind's `rgb(var(--x) / <alpha-value>)` pattern
+   in tailwind.config.js can apply opacity modifiers like `bg-surface/80`.
+
+   Light mode is the original, unmodified CPVS appearance — nothing here
+   changes how it looks. Dark mode follows the reference palette:
+     primary bg #0A0E15, secondary bg #212631, surface/card #373F4E,
+     text primary #FFFFFF, text secondary #E0E4EB, muted text #667085,
+     borders #373F4E.
+   ============================================================================ */
+:root {
+  --surface: 255 255 255;        /* #ffffff — card/page surface */
+  --surface-muted: 246 249 252;  /* #f6f9fc — page background */
+  --surface-line: 228 235 243;   /* #e4ebf3 — borders/dividers */
+  --ink-900: 11 31 58;           /* #0b1f3a — primary text */
+  --ink-700: 51 68 94;           /* #33445e — secondary text */
+  --ink-500: 92 107 132;         /* #5c6b84 — muted text */
+  --ink-300: 148 161 184;        /* #94a1b8 — placeholder/faint text */
+}
+
+.dark {
+  --surface: 55 63 78;           /* #373F4E — card/surface background */
+  --surface-muted: 10 14 21;     /* #0A0E15 — primary page background */
+  --surface-line: 55 63 78;      /* #373F4E — borders/dividers */
+  --ink-900: 255 255 255;        /* #FFFFFF — primary text */
+  --ink-700: 224 228 235;        /* #E0E4EB — secondary text */
+  --ink-500: 102 112 133;        /* #667085 — muted text */
+  --ink-300: 102 112 133;        /* #667085 — placeholder/faint text */
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-surface-muted text-ink-900 font-body antialiased transition-colors duration-200;
+  background-image:
+    radial-gradient(circle at 8% 0%, rgba(31,109,250,0.06), transparent 40%),
+    radial-gradient(circle at 100% 30%, rgba(15,160,128,0.06), transparent 45%);
+  background-attachment: fixed;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(circle at 8% 0%, rgba(31,109,250,0.10), transparent 40%),
+    radial-gradient(circle at 100% 30%, rgba(15,160,128,0.08), transparent 45%);
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-surface/70 backdrop-blur-md border border-surface-line/60 shadow-glass rounded-xl2;
+  }
+
+  .surface-card {
+    @apply bg-surface border border-surface-line shadow-card rounded-xl2;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-clinical-600 px-4 py-2.5
+      text-sm font-semibold text-white shadow-sm transition-all duration-200
+      hover:bg-clinical-700 hover:shadow-md active:scale-[0.98]
+      disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-surface-line bg-surface px-4 py-2.5
+      text-sm font-semibold text-ink-700 transition-all duration-200
+      hover:border-clinical-300 hover:text-clinical-700 active:scale-[0.98];
+  }
+
+  .input-field {
+    @apply w-full rounded-xl border border-surface-line bg-surface px-4 py-2.5 text-sm text-ink-900
+      placeholder:text-ink-300 outline-none transition-all duration-150
+      focus:border-clinical-400 focus:ring-4 focus:ring-clinical-100;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .status-dot {
+    @apply h-2 w-2 rounded-full;
+  }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { @apply bg-ink-300/40 rounded-full; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}

@@ -78,10 +78,10 @@ export default function StudentAttendance() {
       }
 
       const now = new Date();
-      const { canCheckIn } = resolveAttendanceStatus(now, rotation.hospital.checkin_start_time);
+      const { canCheckIn } = resolveAttendanceStatus(now, rotation.hospital.checkin_start_time, rotation.hospital.session_expires_at);
       if (!canCheckIn) {
         setPhase('expired');
-        setMessage('Session time expired. Check-in is closed after 3:00 PM.');
+        setMessage(`Session time expired. Check-in is closed after ${rotation.hospital.session_expires_at.slice(0, 5)}.`);
         return;
       }
 
@@ -99,11 +99,11 @@ export default function StudentAttendance() {
     try {
       const pos = await getCurrentPosition();
       const now = new Date();
-      const { status, canCheckIn } = resolveAttendanceStatus(now, rotation.hospital.checkin_start_time);
+      const { status, canCheckIn } = resolveAttendanceStatus(now, rotation.hospital.checkin_start_time, rotation.hospital.session_expires_at);
 
       if (!canCheckIn) {
         setPhase('expired');
-        setMessage('Session time expired. Check-in is closed after 3:00 PM.');
+        setMessage(`Session time expired. Check-in is closed after ${rotation.hospital.session_expires_at.slice(0, 5)}.`);
         setWorking(false);
         return;
       }
@@ -255,7 +255,7 @@ export default function StudentAttendance() {
       </div>
 
       <p className="text-center text-xs text-ink-300">
-        Check-in windows — Present before 9:00 AM · Late 9:00–10:00 AM · Very Late 10:00 AM–3:00 PM · Closed after 3:00 PM.
+        Check-in windows — Present before {rotation.hospital.checkin_start_time.slice(0, 5)} · Late for the hour after · Very Late until {rotation.hospital.session_expires_at.slice(0, 5)} · Closed after {rotation.hospital.session_expires_at.slice(0, 5)}.
       </p>
     </div>
   );

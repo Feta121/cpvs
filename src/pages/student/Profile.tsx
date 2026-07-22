@@ -25,10 +25,13 @@ export default function StudentProfile() {
 
   const fields = [
     { label: 'Full name', value: profile.full_name },
-    { label: 'Student ID', value: student.student_id },
+    { label: 'CPVS ID', value: student.student_id },
+    { label: 'Student ID (University ID)', value: student.university_id ?? '—' },
     { label: 'Email', value: profile.email },
     { label: 'Phone', value: profile.phone ?? '—' },
     { label: 'Department', value: student.department },
+    { label: 'Program', value: student.program ?? student.department },
+    { label: 'Institution', value: student.institution },
     { label: 'Year', value: `Year ${student.year}` },
     { label: 'Batch', value: student.batch },
   ];

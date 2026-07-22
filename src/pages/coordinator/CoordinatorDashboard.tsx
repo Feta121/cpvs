@@ -36,7 +36,11 @@ export default function CoordinatorDashboard() {
         : new Set((await supabase.from('students').select('id').eq('batch', batch)).data?.map((s) => s.id));
 
     const filtered = (todayAttendance ?? []).filter((a) => !relevantStudentIds || relevantStudentIds.has(a.student_id));
-    const present = filtered.filter((a) => a.status === 'present').length;
+    // "Present today" counts anyone who showed up at all — including late and
+    // very-late check-ins — since being late doesn't mean they weren't
+    // present. "Late today" still separately shows that subset so
+    // coordinators can see who to follow up with.
+    const present = filtered.filter((a) => a.status === 'present' || a.status === 'late' || a.status === 'very_late').length;
     const late = filtered.filter((a) => a.status === 'late' || a.status === 'very_late').length;
     const absent = filtered.filter((a) => a.status === 'absent').length;
 

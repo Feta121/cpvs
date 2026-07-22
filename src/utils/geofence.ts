@@ -36,18 +36,18 @@ export function isWithinGeofence(
  * hospital's configured check-in start time.
  *
  * Rules:
- *  - Before 09:00           -> present
- *  - 09:00 – 09:59:59       -> late
- *  - 10:00 – 14:59:59       -> very_late
- *  - 15:00 onward           -> session expired (no check-in allowed)
+ *  - Before checkinStartTime         -> present
+ *  - checkinStartTime – +1hr         -> late
+ *  - +1hr – sessionExpiresAt         -> very_late
+ *  - sessionExpiresAt onward         -> session expired (no check-in allowed)
  *
- * `checkinStartTime` is honored as the "present" cutoff so a hospital that
- * configures a different official start time still uses these same bands,
- * shifted from that start time.
+ * `sessionExpiresAt` is coordinator-configurable per hospital (defaults to
+ * 15:00 / 3 PM) — see the "Session expiry time" field on the Hospitals page.
  */
 export function resolveAttendanceStatus(
   checkInDate: Date,
-  checkinStartTime: string // "HH:MM:SS"
+  checkinStartTime: string, // "HH:MM:SS"
+  sessionExpiresAt: string = '15:00:00' // "HH:MM:SS"
 ): { status: AttendanceStatus; canCheckIn: boolean; label: string } {
   const [startH, startM] = checkinStartTime.split(':').map(Number);
   const start = new Date(checkInDate);
@@ -56,8 +56,9 @@ export function resolveAttendanceStatus(
   const lateThreshold = new Date(start);
   lateThreshold.setHours(startH + 1, startM, 0, 0);
 
-  const veryLateThreshold = new Date(start);
-  veryLateThreshold.setHours(15, 0, 0, 0);
+  const [expireH, expireM] = sessionExpiresAt.split(':').map(Number);
+  const veryLateThreshold = new Date(checkInDate);
+  veryLateThreshold.setHours(expireH, expireM, 0, 0);
 
   if (checkInDate < start) {
     return { status: 'present', canCheckIn: true, label: 'Present' };

@@ -58,7 +58,52 @@ The app has no signup form (as specified) and no admin role — the very first c
 
 From there, that coordinator can add hospitals, assign rotations, and use **Students → Add student** to generate every subsequent student (and additional coordinator, via the same manual SQL step) account.
 
-## 6. Install and run locally
+## 6. Deploy the nightly `mark-absences` job
+
+This closes the loop the manual/GPS check-in path leaves open: any student in an active rotation who didn't check in on an expected clinical day gets marked `absent` automatically, unless the date is covered by a `practice_exceptions` entry.
+
+```bash
+supabase functions deploy mark-absences
+```
+
+Then, in **SQL Editor**, run `supabase/cron.sql` — but first edit the two placeholders inside it:
+- `YOUR-PROJECT-REF` → your project ref (from the dashboard URL)
+- `YOUR-SERVICE-ROLE` → your `service_role` key (Project Settings → API)
+
+This schedules the function via `pg_cron` + `pg_net` to run nightly at 23:45 UTC. Adjust the cron expression to fit your institution's clinical day and timezone.
+
+**How it decides who's "expected"**: if a rotation has rows in `schedules`, only those exact dates count; otherwise it falls back to every weekday (Mon–Fri) within the rotation's date range. Populate `schedules` per rotation if your program has non-standard clinical days.
+
+You can also invoke it manually for a specific date (useful for backfilling or testing):
+```bash
+supabase functions invoke mark-absences --body '{"date":"2026-07-18"}'
+```
+
+## 7. Apply migration 0003 + deploy delete-student
+
+```
+supabase/migrations/0003_session_expiry_and_university_id.sql
+```
+adds a per-hospital `session_expires_at` (default 15:00) and a `university_id` field on students (displayed as "Student ID" — the pre-existing `student_id` column is now displayed as "CPVS ID"). Run it in the SQL Editor.
+
+Then deploy the new student-deletion function:
+```bash
+supabase functions deploy delete-student
+```
+Deleting a student calls this function rather than deleting the `students` row directly — removing the underlying auth user cascades through profiles → students → rotations → attendance/appeals automatically (via the existing `on delete cascade` foreign keys), so nothing is left orphaned.
+
+Re-deploy `create-student` too — it changed (new CPVS ID / username scheme, `@cpvs.com` domain, requires a university ID):
+```bash
+supabase functions deploy create-student
+```
+
+If you already scheduled the old nightly `mark-absences` cron job, replace it — it's no longer a once-a-night job; it now checks each hospital's own `session_expires_at` throughout the day, so it needs to run every 15 minutes:
+```sql
+select cron.unschedule('cpvs-mark-absences-nightly'); -- if it exists
+```
+then re-run the updated `supabase/cron.sql`.
+
+## 8. Install and run locally
 
 ```bash
 npm install
@@ -67,7 +112,7 @@ npm run dev
 
 The app runs at `http://localhost:5173`.
 
-## 7. Deploy
+## 9. Deploy
 
 Build with `npm run build`; the static output in `dist/` can be deployed to Vercel, Netlify, Cloudflare Pages, or GitHub Pages. Remember to set the same two `VITE_SUPABASE_*` environment variables in your hosting provider.
 

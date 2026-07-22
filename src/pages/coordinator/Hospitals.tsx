@@ -15,6 +15,7 @@ const emptyForm = {
   longitude: '' as string,
   radius_meters: '150',
   checkin_start_time: '09:00',
+  session_expires_at: '15:00',
 };
 
 export default function CoordinatorHospitals() {
@@ -58,6 +59,7 @@ export default function CoordinatorHospitals() {
       longitude: String(h.longitude),
       radius_meters: String(h.radius_meters),
       checkin_start_time: h.checkin_start_time.slice(0, 5),
+      session_expires_at: h.session_expires_at.slice(0, 5),
     });
     setShowForm(true);
   }
@@ -95,6 +97,10 @@ export default function CoordinatorHospitals() {
       showError('Unable to save hospital. Radius must be a positive number of meters.');
       return;
     }
+    if (form.checkin_start_time >= form.session_expires_at) {
+      showError('Unable to save hospital. Session expiry time must be after the check-in start time.');
+      return;
+    }
 
     setSubmitting(true);
     const payload = {
@@ -104,6 +110,7 @@ export default function CoordinatorHospitals() {
       longitude: lng,
       radius_meters: radius,
       checkin_start_time: form.checkin_start_time,
+      session_expires_at: form.session_expires_at,
     };
 
     const { error } = editingId
@@ -235,6 +242,11 @@ export default function CoordinatorHospitals() {
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Check-in start time</label>
               <input required type="time" className="input-field" value={form.checkin_start_time} onChange={(e) => setForm({ ...form, checkin_start_time: e.target.value })} />
             </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink-700">Session expires at</label>
+              <input required type="time" className="input-field" value={form.session_expires_at} onChange={(e) => setForm({ ...form, session_expires_at: e.target.value })} />
+              <p className="mt-1 text-xs text-ink-300">Check-in closes and students become eligible for auto-absent after this time. Defaults to 15:00 (3 PM).</p>
+            </div>
           </div>
 
           <div className="flex gap-2">
@@ -266,6 +278,7 @@ export default function CoordinatorHospitals() {
               <div className="flex justify-between"><dt>Coordinates</dt><dd className="font-mono text-ink-700">{h.latitude.toFixed(4)}, {h.longitude.toFixed(4)}</dd></div>
               <div className="flex justify-between"><dt>Radius</dt><dd>{h.radius_meters}m</dd></div>
               <div className="flex justify-between"><dt>Check-in start</dt><dd>{h.checkin_start_time.slice(0, 5)}</dd></div>
+              <div className="flex justify-between"><dt>Session expires</dt><dd>{h.session_expires_at.slice(0, 5)}</dd></div>
             </dl>
 
             <div className="mt-4 flex flex-wrap gap-1.5 border-t border-surface-line pt-3">

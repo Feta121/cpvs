@@ -1,25 +1,20 @@
 // Supabase Edge Function: create-student
 //
-// Creates a Supabase Auth user for a new student, plus their `profiles` and
-// `students` rows, using the service role key. This MUST run server-side —
-// the service role key is never shipped to the browser.
-//
-// FIX NOTE (student creation flow): the previous version had no rollback. If
-// the `profiles` or `students` insert failed *after* the auth user was
-// already created, you got an orphaned auth user with no student-facing
-// record and no way to retry with the same name — from the coordinator's
-// side this looked exactly like "clicking save does nothing," because the
-// error was returned but the half-created user then blocked a clean retry
-// (e.g. a unique constraint conflict on a later attempt). This version
-// deletes the auth user again if any later step fails, so a retry always
-// starts clean, and every failure path returns a specific, human-readable
-// message instead of a raw Postgres/Auth error.
+// ID SCHEME (per spec):
+//   - "Student ID" (stored in `university_id`) is the real university-issued
+//     ID the coordinator types in, e.g. "UGR/3152/15".
+//   - "CPVS ID" (stored in `student_id`, the pre-existing column — kept as-is
+//     to avoid renaming it) is generated as FIRSTNAME-NUMBER, where NUMBER is
+//     the numeric segment of the university ID. "Kedir Hassen" + "UGR/3152/15"
+//     -> "KEDIR-3152".
+//   - Username (and therefore login email) is the lowercase version of the
+//     same thing: "kedir3152", logging in as kedir3152@cpvs.com.
+//   - On a collision (e.g. two "Kedir"s with different university IDs that
+//     happen to share a number, or a genuine duplicate), a short random
+//     suffix is appended so account creation never silently fails.
 //
 // Deploy with:
 //   supabase functions deploy create-student
-//
-// Invoke from the client with:
-//   supabase.functions.invoke('create-student', { body: { fullName, program, institution, department, year, batch, email, phone } })
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
@@ -28,10 +23,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-function generateUsername(fullName: string, batch: string) {
-  const slug = fullName.trim().toLowerCase().replace(/[^a-z]/g, '').slice(0, 8) || 'student';
-  const suffix = Math.floor(1000 + Math.random() * 9000);
-  return `${slug}${batch.toLowerCase().replace(/\s+/g, '')}${suffix}`;
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+function extractFirstName(fullName: string) {
+  return (fullName.trim().split(/\s+/)[0] || 'student').replace(/[^a-zA-Z]/g, '');
+}
+
+/** Pulls the numeric segment out of a university ID like "UGR/3152/15" -> "3152". */
+function extractIdNumber(universityId: string) {
+  const parts = universityId.split('/').map((p) => p.trim());
+  const numeric = parts.find((p) => /^\d+$/.test(p));
+  return numeric ?? String(Math.floor(1000 + Math.random() * 9000));
 }
 
 function generateTempPassword() {
@@ -39,13 +46,6 @@ function generateTempPassword() {
   let pass = '';
   for (let i = 0; i < 10; i++) pass += chars[Math.floor(Math.random() * chars.length)];
   return pass;
-}
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
 }
 
 Deno.serve(async (req) => {
@@ -56,44 +56,34 @@ Deno.serve(async (req) => {
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
-  // Track the auth user id as soon as it's created so the catch-all rollback
-  // at the bottom can clean it up on ANY later failure.
   let createdUserId: string | null = null;
 
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return json({ error: 'Missing authorization header. Please log in again.' }, 401);
 
-    // ---- 1. Authenticate the caller and confirm they're a coordinator ----
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: userData, error: userError } = await callerClient.auth.getUser();
-    if (userError || !userData.user) {
-      return json({ error: 'Your session has expired. Please log in again.' }, 401);
-    }
+    if (userError || !userData.user) return json({ error: 'Your session has expired. Please log in again.' }, 401);
 
     const { data: callerProfile, error: callerProfileError } = await admin
       .from('profiles')
       .select('role')
       .eq('id', userData.user.id)
       .maybeSingle();
+    if (callerProfileError) return json({ error: 'Unable to verify your account role. ' + callerProfileError.message }, 500);
+    if (callerProfile?.role !== 'coordinator') return json({ error: 'Only coordinators can create student accounts.' }, 403);
 
-    if (callerProfileError) {
-      return json({ error: 'Unable to verify your account role. ' + callerProfileError.message }, 500);
-    }
-    if (callerProfile?.role !== 'coordinator') {
-      return json({ error: 'Only coordinators can create student accounts.' }, 403);
-    }
-
-    // ---- 2. Validate input (root cause class: missing/blank required fields) ----
     const body = await req.json().catch(() => null);
     if (!body) return json({ error: 'Invalid request. Please try again.' }, 400);
 
-    const { fullName, email, phone, department, program, institution, year, batch } = body;
+    const { fullName, email, phone, department, program, institution, year, batch, universityId } = body;
 
     const missing: string[] = [];
     if (!fullName?.trim()) missing.push('full name');
+    if (!universityId?.trim()) missing.push('student ID (university ID)');
     if (!department?.trim()) missing.push('department');
     if (!batch?.trim()) missing.push('batch');
     if (year === undefined || year === null || year === '') missing.push('year');
@@ -106,13 +96,38 @@ Deno.serve(async (req) => {
       return json({ error: 'Unable to add student. Year must be a whole number between 1 and 6.' }, 400);
     }
 
-    // ---- 3. Create the auth user ----
-    const username = generateUsername(fullName, batch);
+    // Reject a duplicate university ID up front with a clear message, rather
+    // than surfacing a raw unique-constraint error after the auth user (and
+    // temp password) has already been generated.
+    const { data: existingUniId } = await admin
+      .from('students')
+      .select('id')
+      .eq('university_id', universityId.trim())
+      .maybeSingle();
+    if (existingUniId) {
+      return json({ error: `Unable to add student. A student with Student ID "${universityId.trim()}" already exists.` }, 409);
+    }
+
+    const firstName = extractFirstName(fullName);
+    const idNumber = extractIdNumber(universityId.trim());
+    let cpvsId = `${firstName.toUpperCase()}-${idNumber}`;
+    let username = `${firstName.toLowerCase()}${idNumber}`;
+
+    // Handle the (rare) case where the generated username/CPVS ID collides
+    // with an existing one by appending a short random suffix, instead of
+    // failing outright.
+    const { data: existingCode } = await admin.from('students').select('id').eq('student_id', cpvsId).maybeSingle();
+    if (existingCode) {
+      const suffix = Math.floor(10 + Math.random() * 90);
+      cpvsId = `${cpvsId}-${suffix}`;
+      username = `${username}${suffix}`;
+    }
+
     const tempPassword = generateTempPassword();
-    const internalEmail = `${username}@cpvs.com`;
+    const loginEmail = `${username}@cpvs.com`;
 
     const { data: created, error: createError } = await admin.auth.admin.createUser({
-      email: internalEmail,
+      email: loginEmail,
       password: tempPassword,
       email_confirm: true,
     });
@@ -121,24 +136,20 @@ Deno.serve(async (req) => {
     }
     createdUserId = created.user.id;
 
-    // ---- 4. Create the profiles row ----
     const { error: profileError } = await admin.from('profiles').insert({
       id: createdUserId,
       role: 'student',
       full_name: fullName.trim(),
-      email: email?.trim() || internalEmail,
+      email: email?.trim() || loginEmail,
       phone: phone?.trim() || null,
       must_change_password: true,
     });
-    if (profileError) {
-      throw new Error('Unable to create student profile. ' + profileError.message);
-    }
+    if (profileError) throw new Error('Unable to create student profile. ' + profileError.message);
 
-    // ---- 5. Create the students row ----
-    const studentIdCode = `AAU-ANES-${batch}-${username.slice(-4)}`.toUpperCase();
     const { error: studentError } = await admin.from('students').insert({
       id: createdUserId,
-      student_id: studentIdCode,
+      student_id: cpvsId,
+      university_id: universityId.trim(),
       department: department.trim(),
       program: program?.trim() || department.trim(),
       institution: institution?.trim() || 'Addis Ababa University',
@@ -146,21 +157,12 @@ Deno.serve(async (req) => {
       batch: batch.trim(),
       status: 'active',
     });
-    if (studentError) {
-      throw new Error('Unable to create student record. ' + studentError.message);
-    }
+    if (studentError) throw new Error('Unable to create student record. ' + studentError.message);
 
-    // ---- Success ----
-    return json({ username, tempPassword, studentId: studentIdCode });
+    return json({ username, tempPassword, cpvsId, universityId: universityId.trim(), loginEmail });
   } catch (err) {
-    // Rollback: if the auth user was created but a later step failed, delete
-    // it so the coordinator can immediately retry without a leftover,
-    // invisible account blocking them.
     if (createdUserId) {
-      await admin.auth.admin.deleteUser(createdUserId).catch(() => {
-        // If even the rollback fails, surface that too — silence here would
-        // recreate the exact "looks like nothing happened" bug.
-      });
+      await admin.auth.admin.deleteUser(createdUserId).catch(() => {});
     }
     return json({ error: (err as Error).message ?? 'Unable to add student. An unexpected error occurred.' }, 500);
   }

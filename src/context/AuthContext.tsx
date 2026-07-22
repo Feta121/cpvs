@@ -19,9 +19,10 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 // Students & coordinators log in with a username (no public email disclosure).
-// Usernames map to a synthetic internal email: `${username}@cpvs.local`.
-// This keeps Supabase's built-in email/password auth while giving coordinators
-// full control over credential issuance.
+// Usernames map to a synthetic internal email: `${username}@cpvs.com`. If the
+// person types something that already looks like an email, it's used as-is.
+// This keeps Supabase's built-in email/password auth while giving
+// coordinators full control over credential issuance.
 function usernameToEmail(username: string) {
   const value = username.trim().toLowerCase();
 

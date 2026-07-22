@@ -1,23 +1,27 @@
 // Supabase Edge Function: mark-absences
 //
-// Run once per day (scheduled via pg_cron, see supabase/cron.sql) after the
-// last valid check-in window has closed (e.g. 23:30 local time, or shortly
-// after the hospital's 3:00 PM cutoff if you don't want same-day corrections
-// possible). For every active rotation, if the target date:
-//   - falls within the rotation's start/end range,
-//   - is a day the student was expected in clinic (see `isExpectedDay` below),
-//   - has no practice_exceptions entry (holiday / closure / cancelled),
-//   - and has no existing attendance row,
-// it inserts an `absent` attendance record and notifies the student and
-// their coordinator. Existing records (including manual coordinator
-// corrections) are never touched.
+// CHANGED: this used to run once nightly and only ever mark *yesterday*
+// absent. Per spec ("after 3pm ... mark absent, even if configurable"),
+// absence now needs to be marked shortly after each hospital's own cutoff
+// time on the SAME day — not the next day. So this function now:
+//   1. Computes "today" and the current time-of-day in Africa/Addis_Ababa
+//      (UTC+3, no DST — safe to hardcode the offset).
+//   2. For every active rotation whose hospital's `session_expires_at` has
+//      already passed (in Addis Ababa local time), and who has no attendance
+//      row yet for today, and today isn't a practice_exceptions day, inserts
+//      an `absent` row and notifies student + coordinator.
+//
+// Schedule this to run every 15–30 minutes (see supabase/cron.sql) so each
+// hospital's cutoff is caught close to when it actually happens, since
+// different hospitals can have different session_expires_at values.
 //
 // Deploy with:
 //   supabase functions deploy mark-absences
 //
-// Invoke manually for a backfill / specific date with:
+// Manually test/backfill a specific date with:
 //   supabase functions invoke mark-absences --body '{"date":"2026-07-18"}'
-// (omit body to default to "yesterday", which is what the daily cron uses).
+// (omitting the time-of-day check — a manual/backfill call always applies,
+// regardless of current time, since you're asking for it explicitly.)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
@@ -26,22 +30,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const ADDIS_OFFSET_HOURS = 3; // Africa/Addis_Ababa is UTC+3 year-round, no DST.
+
+function addisNow(): Date {
+  return new Date(Date.now() + ADDIS_OFFSET_HOURS * 60 * 60 * 1000);
+}
+
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-/**
- * A student is "expected" on a given date if either:
- *  - the rotation has explicit `schedules` rows and this date is one of them, or
- *  - the rotation has NO schedules rows at all, in which case we fall back to
- *    "every weekday (Mon–Fri) within the rotation's date range".
- *
- * This lets institutions that plan exact clinical days use `schedules`, while
- * still working out of the box for rotations that never populate it.
- */
+function timeOfDayMinutes(d: Date) {
+  return d.getUTCHours() * 60 + d.getUTCMinutes(); // `d` here is already Addis-shifted
+}
+
+function timeStringToMinutes(t: string) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
 function isWeekday(dateStr: string) {
   const day = new Date(dateStr + 'T00:00:00Z').getUTCDay();
   return day !== 0 && day !== 6;
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }
 
 Deno.serve(async (req) => {
@@ -53,17 +70,26 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
     let targetDate: string;
+    let isManualCall = false;
     try {
       const body = await req.json();
-      targetDate = body?.date ?? isoDate(new Date(Date.now() - 86400000));
+      if (body?.date) {
+        targetDate = body.date;
+        isManualCall = true;
+      } else {
+        targetDate = isoDate(addisNow());
+      }
     } catch {
-      targetDate = isoDate(new Date(Date.now() - 86400000)); // default: yesterday
+      targetDate = isoDate(addisNow());
     }
 
-    // 1. Active rotations covering the target date.
+    const nowMinutes = timeOfDayMinutes(addisNow());
+
+    // 1. Active rotations covering the target date, joined to their
+    //    hospital's cutoff time.
     const { data: rotations, error: rotationsError } = await admin
       .from('rotations')
-      .select('id, student_id, hospital_id, coordinator_id, start_date, end_date')
+      .select('id, student_id, hospital_id, coordinator_id, start_date, end_date, hospital:hospitals(session_expires_at)')
       .eq('status', 'active')
       .lte('start_date', targetDate)
       .gte('end_date', targetDate);
@@ -73,19 +99,13 @@ Deno.serve(async (req) => {
     }
 
     // 2. Global + hospital-specific exceptions for this date.
-    const { data: exceptions } = await admin
-      .from('practice_exceptions')
-      .select('hospital_id')
-      .eq('date', targetDate);
-    const exemptHospitalIds = new Set((exceptions ?? []).map((e) => e.hospital_id)); // includes `null` = global
+    const { data: exceptions } = await admin.from('practice_exceptions').select('hospital_id').eq('date', targetDate);
+    const exemptHospitalIds = new Set((exceptions ?? []).map((e) => e.hospital_id));
     const hasGlobalException = (exceptions ?? []).some((e) => e.hospital_id === null);
 
-    // 3. Rotation ids that have explicit scheduled days defined at all.
+    // 3. Explicit scheduled days, if any rotations use them.
     const rotationIds = rotations.map((r) => r.id);
-    const { data: scheduleRows } = await admin
-      .from('schedules')
-      .select('rotation_id, date')
-      .in('rotation_id', rotationIds);
+    const { data: scheduleRows } = await admin.from('schedules').select('rotation_id, date').in('rotation_id', rotationIds);
     const scheduledDatesByRotation = new Map<string, Set<string>>();
     for (const row of scheduleRows ?? []) {
       if (!scheduledDatesByRotation.has(row.rotation_id)) scheduledDatesByRotation.set(row.rotation_id, new Set());
@@ -96,17 +116,21 @@ Deno.serve(async (req) => {
     const { data: existing } = await admin.from('attendance').select('student_id').eq('date', targetDate);
     const alreadyRecorded = new Set((existing ?? []).map((a) => a.student_id));
 
-    let markedAbsent = 0;
     const toInsert: any[] = [];
     const notifications: any[] = [];
 
-    for (const rotation of rotations) {
+    for (const rotation of rotations as any[]) {
       if (alreadyRecorded.has(rotation.student_id)) continue;
       if (hasGlobalException || exemptHospitalIds.has(rotation.hospital_id)) continue;
 
       const explicitSchedule = scheduledDatesByRotation.get(rotation.id);
       const expected = explicitSchedule ? explicitSchedule.has(targetDate) : isWeekday(targetDate);
       if (!expected) continue;
+
+      // Skip if this hospital's cutoff hasn't passed yet today — unless this
+      // is a manual/backfill call, which always applies regardless of time.
+      const cutoffStr: string = rotation.hospital?.session_expires_at ?? '15:00:00';
+      if (!isManualCall && nowMinutes < timeStringToMinutes(cutoffStr)) continue;
 
       toInsert.push({
         student_id: rotation.student_id,
@@ -133,21 +157,13 @@ Deno.serve(async (req) => {
     if (toInsert.length > 0) {
       const { error: insertError } = await admin.from('attendance').insert(toInsert);
       if (insertError) throw insertError;
-      markedAbsent = toInsert.length;
 
       const { error: notifyError } = await admin.from('notifications').insert(notifications);
       if (notifyError) throw notifyError;
     }
 
-    return json({ date: targetDate, checked: rotations.length, marked_absent: markedAbsent });
+    return json({ date: targetDate, checked: rotations.length, marked_absent: toInsert.length });
   } catch (err) {
     return json({ error: (err as Error).message }, 400);
   }
 });
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}

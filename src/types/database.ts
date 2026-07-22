@@ -26,7 +26,10 @@ export interface Profile {
 
 export interface Student {
   id: string;
+  /** Displayed in the UI as "CPVS ID" — a CPVS-generated code (e.g. "KEDIR-3152"), distinct from the student's actual university ID below. Physical column name kept as-is to avoid renaming an existing column. */
   student_id: string;
+  /** Added in migration 0003. Displayed in the UI as "Student ID" — the student's real university-issued ID (e.g. "UGR/3152/15"). */
+  university_id: string | null;
   department: string;
   /** Added in migration 0002. Backfilled from `department` for existing rows. */
   program: string | null;
@@ -54,6 +57,8 @@ export interface Hospital {
   longitude: number;
   radius_meters: number;
   checkin_start_time: string; // "HH:MM:SS"
+  /** Added in migration 0003. Coordinator-editable cutoff after which check-in closes and the student becomes eligible for auto-absent. Defaults to 15:00. */
+  session_expires_at: string; // "HH:MM:SS"
   /** Added in migration 0002. Inactive hospitals are hidden from new rotation assignment but preserved for history. */
   is_active: boolean;
   created_by: string | null;

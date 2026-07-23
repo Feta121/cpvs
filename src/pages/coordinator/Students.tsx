@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { UserPlus, Loader2, Copy, Check, X, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
+import { useTheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import Badge from '../../components/ui/Badge';
@@ -24,6 +25,7 @@ const emptyForm = {
 
 export default function CoordinatorStudents() {
   const { showSuccess, showError } = useToast();
+  const { preference } = useTheme();
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -270,7 +272,8 @@ export default function CoordinatorStudents() {
                         <select
                           value={s.status}
                           onChange={(e) => updateStatus(s.id, e.target.value as Student['status'])}
-                          className="rounded-lg border border-surface-line px-2 py-1 text-xs"
+                          className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs text-ink-900"
+                          style={{ colorScheme: preference }}
                         >
                           <option value="active">Active</option>
                           <option value="completed">Completed Practice</option>

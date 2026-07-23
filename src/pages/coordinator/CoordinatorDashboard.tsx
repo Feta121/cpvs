@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Users, CheckCircle2, Clock, XCircle, FileWarning } from 'lucide-react';
+import { Users, CheckCircle2, Clock, XCircle, FileWarning, TrendingUp, Hospital as HospitalIcon, ShieldAlert, Activity } from 'lucide-react';
+import { startOfWeek, format, subWeeks } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { fetchProfilesById } from '../../utils/fetchProfiles';
 import StatCard from '../../components/ui/StatCard';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
+import AttendanceTrendChart, { TrendPoint } from '../../components/dashboard/AttendanceTrendChart';
+import HospitalComplianceBars, { HospitalComplianceRow } from '../../components/dashboard/HospitalComplianceBars';
+import StudentRiskPanel, { RiskEntry, RiskSeverity } from '../../components/dashboard/StudentRiskPanel';
+import HospitalActivityMap, { HospitalActivity } from '../../components/dashboard/HospitalActivityMap';
+import type { AttendanceStatus } from '../../types/database';
+
+const PRESENT_LIKE: AttendanceStatus[] = ['present', 'late', 'very_late'];
+const WEEKS_OF_TREND = 8;
 
 export default function CoordinatorDashboard() {
   const { coordinator } = useAuth();
@@ -12,9 +22,16 @@ export default function CoordinatorDashboard() {
   const [batches, setBatches] = useState<string[]>([]);
   const [stats, setStats] = useState({ total: 0, present: 0, late: 0, absent: 0, pendingAppeals: 0 });
 
+  // New: dashboard analytics state (additive — nothing above this line changed behavior)
+  const [trend, setTrend] = useState<TrendPoint[]>([]);
+  const [hospitalCompliance, setHospitalCompliance] = useState<HospitalComplianceRow[]>([]);
+  const [riskEntries, setRiskEntries] = useState<RiskEntry[]>([]);
+  const [hospitalActivity, setHospitalActivity] = useState<HospitalActivity[]>([]);
+
   useEffect(() => {
     if (!coordinator) return;
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordinator, batch]);
 
   async function loadData() {
@@ -30,12 +47,10 @@ export default function CoordinatorDashboard() {
 
     const { data: todayAttendance } = await supabase.from('attendance').select('status, student_id').eq('date', today);
 
-    const relevantStudentIds =
-      batch === 'all'
-        ? null
-        : new Set((await supabase.from('students').select('id').eq('batch', batch)).data?.map((s) => s.id));
+    const batchStudentIds =
+      batch === 'all' ? null : new Set((await supabase.from('students').select('id').eq('batch', batch)).data?.map((s) => s.id));
 
-    const filtered = (todayAttendance ?? []).filter((a) => !relevantStudentIds || relevantStudentIds.has(a.student_id));
+    const filtered = (todayAttendance ?? []).filter((a) => !batchStudentIds || batchStudentIds.has(a.student_id));
     // "Present today" counts anyone who showed up at all — including late and
     // very-late check-ins — since being late doesn't mean they weren't
     // present. "Late today" still separately shows that subset so
@@ -50,7 +65,157 @@ export default function CoordinatorDashboard() {
       .eq('status', 'pending');
 
     setStats({ total: total ?? 0, present, late, absent, pendingAppeals: pendingAppeals ?? 0 });
+
+    // ---- Everything below is new: analytics, compliance, risk, activity ----
+    await Promise.all([loadTrendAndCompliance(batchStudentIds), loadRiskPanel(batchStudentIds), loadHospitalActivity(today)]);
+
     setLoading(false);
+  }
+
+  /** Clinical Practice Performance Analytics + Hospital Rotation Analytics. */
+  async function loadTrendAndCompliance(batchStudentIds: Set<string> | null) {
+    const since = format(subWeeks(new Date(), WEEKS_OF_TREND), 'yyyy-MM-dd');
+    const { data: recentAttendance } = await supabase
+      .from('attendance')
+      .select('date, status, student_id, hospital_id')
+      .gte('date', since);
+
+    const scoped = (recentAttendance ?? []).filter((a) => !batchStudentIds || batchStudentIds.has(a.student_id));
+
+    // Weekly trend: group by the Monday of each week, % present-like.
+    const weekBuckets = new Map<string, { total: number; present: number }>();
+    for (const a of scoped) {
+      const weekStart = format(startOfWeek(new Date(a.date), { weekStartsOn: 1 }), 'MMM d');
+      const bucket = weekBuckets.get(weekStart) ?? { total: 0, present: 0 };
+      bucket.total += 1;
+      if (PRESENT_LIKE.includes(a.status as AttendanceStatus)) bucket.present += 1;
+      weekBuckets.set(weekStart, bucket);
+    }
+    const trendPoints: TrendPoint[] = Array.from(weekBuckets.entries()).map(([label, b]) => ({
+      label,
+      percentage: b.total > 0 ? Math.round((b.present / b.total) * 100) : 0,
+    }));
+    setTrend(trendPoints);
+
+    // Hospital compliance: % present-like per hospital, across all-time
+    // records (not just the trend window) for a stable comparison.
+    const { data: allAttendance } = await supabase.from('attendance').select('status, student_id, hospital_id');
+    const scopedAll = (allAttendance ?? []).filter((a) => !batchStudentIds || batchStudentIds.has(a.student_id));
+    const { data: hospitals } = await supabase.from('hospitals').select('id, name').eq('is_active', true);
+
+    const byHospital = new Map<string, { total: number; present: number }>();
+    for (const a of scopedAll) {
+      const bucket = byHospital.get(a.hospital_id) ?? { total: 0, present: 0 };
+      bucket.total += 1;
+      if (PRESENT_LIKE.includes(a.status as AttendanceStatus)) bucket.present += 1;
+      byHospital.set(a.hospital_id, bucket);
+    }
+    const complianceRows: HospitalComplianceRow[] = (hospitals ?? [])
+      .map((h) => {
+        const bucket = byHospital.get(h.id);
+        return {
+          hospitalId: h.id,
+          name: h.name,
+          percentage: bucket && bucket.total > 0 ? Math.round((bucket.present / bucket.total) * 100) : 0,
+          totalRecords: bucket?.total ?? 0,
+        };
+      })
+      .filter((r) => r.totalRecords > 0)
+      .sort((a, b) => b.percentage - a.percentage);
+    setHospitalCompliance(complianceRows);
+  }
+
+  /**
+   * Student Risk Detection Panel.
+   *
+   * Flags a student when any of these (all computed from real data) are true:
+   *  - Low attendance: <70% present-like across all their attendance records (needs 3+ records to avoid noise from a brand-new student)
+   *  - Repeated lateness: reuses the existing `late_attendance_concern` flag your DB trigger already sets after 4+ late/very_late records in a rotation
+   *  - Missing check-outs: 2+ attendance records with a check-in but no check-out
+   *  - Frequent appeals: 2+ absence appeals ever submitted
+   *
+   * Severity: High = 2+ factors (or the DB concern flag), Medium = exactly 1 factor.
+   */
+  async function loadRiskPanel(batchStudentIds: Set<string> | null) {
+    let studentQuery = supabase.from('students').select('id, late_attendance_concern');
+    if (batchStudentIds) studentQuery = studentQuery.in('id', Array.from(batchStudentIds));
+    const { data: students } = await studentQuery;
+    if (!students || students.length === 0) {
+      setRiskEntries([]);
+      return;
+    }
+    const studentIds = students.map((s) => s.id);
+
+    const [{ data: attendanceRows }, { data: appealRows }, profileMap] = await Promise.all([
+      supabase.from('attendance').select('student_id, status, check_in_time, check_out_time').in('student_id', studentIds),
+      supabase.from('appeals').select('student_id').in('student_id', studentIds),
+      fetchProfilesById(studentIds),
+    ]);
+
+    const entries: RiskEntry[] = [];
+
+    for (const s of students) {
+      const own = (attendanceRows ?? []).filter((a) => a.student_id === s.id);
+      const total = own.length;
+      const presentLike = own.filter((a) => PRESENT_LIKE.includes(a.status as AttendanceStatus)).length;
+      const attendancePct = total >= 3 ? Math.round((presentLike / total) * 100) : null;
+      const missingCheckouts = own.filter((a) => a.check_in_time && !a.check_out_time).length;
+      const appealCount = (appealRows ?? []).filter((a) => a.student_id === s.id).length;
+
+      const reasons: string[] = [];
+      let factorCount = 0;
+
+      if (attendancePct !== null && attendancePct < 70) {
+        reasons.push(`Attendance ${attendancePct}%`);
+        factorCount++;
+      }
+      if (s.late_attendance_concern) {
+        reasons.push('Flagged: 4+ late check-ins in a rotation');
+        factorCount++;
+      }
+      if (missingCheckouts >= 2) {
+        reasons.push(`${missingCheckouts} missing check-outs`);
+        factorCount++;
+      }
+      if (appealCount >= 2) {
+        reasons.push(`${appealCount} absence appeals filed`);
+        factorCount++;
+      }
+
+      if (factorCount === 0) continue;
+
+      const severity: RiskSeverity = factorCount >= 2 || s.late_attendance_concern ? 'high' : 'medium';
+      entries.push({
+        studentId: s.id,
+        studentName: profileMap.get(s.id)?.full_name ?? '(profile missing)',
+        severity,
+        reasons,
+      });
+    }
+
+    entries.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'high' ? -1 : 1));
+    setRiskEntries(entries);
+  }
+
+  /** Live Clinical Activity Map: who's checked in vs checked out, per hospital, today. */
+  async function loadHospitalActivity(today: string) {
+    const [{ data: hospitals }, { data: todayRows }] = await Promise.all([
+      supabase.from('hospitals').select('id, name, latitude, longitude').eq('is_active', true),
+      supabase.from('attendance').select('hospital_id, check_in_time, check_out_time').eq('date', today),
+    ]);
+
+    const activity: HospitalActivity[] = (hospitals ?? []).map((h) => {
+      const rows = (todayRows ?? []).filter((r) => r.hospital_id === h.id);
+      return {
+        hospitalId: h.id,
+        name: h.name,
+        latitude: h.latitude,
+        longitude: h.longitude,
+        activeNow: rows.filter((r) => r.check_in_time && !r.check_out_time).length,
+        checkedOutToday: rows.filter((r) => r.check_in_time && r.check_out_time).length,
+      };
+    });
+    setHospitalActivity(activity);
   }
 
   if (loading) return <FullScreenLoader label="Loading dashboard…" />;
@@ -76,6 +241,46 @@ export default function CoordinatorDashboard() {
         <StatCard label="Late today" value={stats.late} icon={Clock} tone="late" />
         <StatCard label="Absent today" value={stats.absent} icon={XCircle} tone="expired" />
         <StatCard label="Pending appeals" value={stats.pendingAppeals} icon={FileWarning} tone="verylate" />
+      </div>
+
+      {/* Clinical Practice Performance Analytics */}
+      <div className="surface-card p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <TrendingUp size={16} className="text-clinical-600" />
+          <h2 className="font-display text-base font-semibold text-ink-900">Attendance trend</h2>
+          <span className="text-xs text-ink-300">— last {WEEKS_OF_TREND} weeks, weekly %</span>
+        </div>
+        <AttendanceTrendChart data={trend} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Hospital Rotation Analytics */}
+        <div className="surface-card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <HospitalIcon size={16} className="text-clinical-600" />
+            <h2 className="font-display text-base font-semibold text-ink-900">Hospital compliance</h2>
+          </div>
+          <HospitalComplianceBars rows={hospitalCompliance} />
+        </div>
+
+        {/* Student Risk Detection Panel */}
+        <div className="surface-card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <ShieldAlert size={16} className="text-status-expired" />
+            <h2 className="font-display text-base font-semibold text-ink-900">Students needing attention</h2>
+          </div>
+          <StudentRiskPanel entries={riskEntries} />
+        </div>
+      </div>
+
+      {/* Live Clinical Activity Map */}
+      <div className="surface-card p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <Activity size={16} className="text-vital-600" />
+          <h2 className="font-display text-base font-semibold text-ink-900">Live clinical activity</h2>
+          <span className="text-xs text-ink-300">— today, by hospital</span>
+        </div>
+        <HospitalActivityMap hospitals={hospitalActivity} />
       </div>
     </div>
   );

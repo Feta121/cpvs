@@ -46,7 +46,7 @@ export default function ChangePassword() {
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4">
       <div className="w-full max-w-md animate-fadeUp">
         <div className="mb-8 flex flex-col items-center text-center">
-          <img src="/wordmark.png" alt="CPVS" className="mb-4 h-8 w-auto dark:brightness-0 dark:invert" />
+          <img src="/wordmark.png" alt="CPVS" className="mb-4 h-14 w-auto dark:brightness-0 dark:invert" />
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-vital-600 text-white shadow-glass">
             <KeyRound size={20} />
           </div>

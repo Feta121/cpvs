@@ -30,7 +30,7 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4">
       <div className="w-full max-w-md animate-fadeUp">
         <div className="mb-8 flex flex-col items-center text-center">
-          <img src="/wordmark.png" alt="CPVS" className="mb-4 h-10 w-auto dark:brightness-0 dark:invert" />
+          <img src="/wordmark.png" alt="CPVS" className="mb-4 h-16 w-auto dark:brightness-0 dark:invert" />
           <p className="mt-1 text-sm text-ink-500">Clinical Practice Verification System</p>
         </div>
 

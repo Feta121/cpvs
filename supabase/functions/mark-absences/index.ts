@@ -49,9 +49,14 @@ function timeStringToMinutes(t: string) {
   return h * 60 + m;
 }
 
-function isWeekday(dateStr: string) {
-  const day = new Date(dateStr + 'T00:00:00Z').getUTCDay();
-  return day !== 0 && day !== 6;
+/**
+ * Clinical practice runs Monday, Tuesday, and Wednesday only — no practice
+ * Thursday through Sunday. Used as the fallback "expected day" check when a
+ * rotation has no explicit `schedules` rows of its own.
+ */
+function isClinicalDay(dateStr: string) {
+  const day = new Date(dateStr + 'T00:00:00Z').getUTCDay(); // 0=Sun ... 6=Sat
+  return day === 1 || day === 2 || day === 3; // Mon, Tue, Wed
 }
 
 function json(body: unknown, status = 200) {
@@ -124,7 +129,7 @@ Deno.serve(async (req) => {
       if (hasGlobalException || exemptHospitalIds.has(rotation.hospital_id)) continue;
 
       const explicitSchedule = scheduledDatesByRotation.get(rotation.id);
-      const expected = explicitSchedule ? explicitSchedule.has(targetDate) : isWeekday(targetDate);
+      const expected = explicitSchedule ? explicitSchedule.has(targetDate) : isClinicalDay(targetDate);
       if (!expected) continue;
 
       // Skip if this hospital's cutoff hasn't passed yet today — unless this

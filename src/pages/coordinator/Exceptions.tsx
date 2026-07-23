@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Plus, CalendarX2, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import Badge from '../../components/ui/Badge';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { PracticeException, Hospital } from '../../types/database';
 
 export default function CoordinatorExceptions() {
   const { coordinator } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [items, setItems] = useState<(PracticeException & { hospital: Hospital | null })[]>([]);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,14 +35,63 @@ export default function CoordinatorExceptions() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    await supabase.from('practice_exceptions').insert({
-      hospital_id: form.hospital_id || null,
-      date: form.date,
-      type: form.type,
-      reason: form.reason || null,
-      created_by: coordinator?.id,
-    });
+
+    const { data: created, error } = await supabase
+      .from('practice_exceptions')
+      .insert({
+        hospital_id: form.hospital_id || null,
+        date: form.date,
+        type: form.type,
+        reason: form.reason || null,
+        created_by: coordinator?.id,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      setSubmitting(false);
+      showError('Unable to save exception. ' + error.message);
+      return;
+    }
+
+    // Notify every student whose rotation covers this date — either at the
+    // specific hospital, or every active student if this applies to all
+    // hospitals — so nobody shows up expecting practice, or worries they
+    // missed a day that doesn't actually count as an absence.
+    let rotationQuery = supabase
+      .from('rotations')
+      .select('student_id')
+      .eq('status', 'active')
+      .lte('start_date', form.date)
+      .gte('end_date', form.date);
+    if (form.hospital_id) rotationQuery = rotationQuery.eq('hospital_id', form.hospital_id);
+
+    const { data: affectedRotations } = await rotationQuery;
+    const studentIds = Array.from(new Set((affectedRotations ?? []).map((r) => r.student_id)));
+
+    if (studentIds.length > 0) {
+      const typeLabel = form.type === 'holiday' ? 'Holiday' : form.type === 'closure' ? 'Hospital closure' : 'Cancelled clinical day';
+      const { error: notifyError } = await supabase.from('notifications').insert(
+        studentIds.map((student_id) => ({
+          user_id: student_id,
+          title: `No practice on ${form.date}`,
+          message: `${typeLabel}${form.reason ? `: ${form.reason}` : ''}. This day will not count as an absence.`,
+          type: 'rotation_update' as const,
+          related_id: created?.id ?? null,
+        }))
+      );
+      if (notifyError) {
+        showError('Exception saved, but notifying students failed: ' + notifyError.message);
+        setSubmitting(false);
+        setShowForm(false);
+        setForm({ hospital_id: '', date: '', type: 'holiday', reason: '' });
+        load();
+        return;
+      }
+    }
+
     setSubmitting(false);
+    showSuccess(`Exception saved${studentIds.length > 0 ? ` — ${studentIds.length} student(s) notified` : ''}.`);
     setShowForm(false);
     setForm({ hospital_id: '', date: '', type: 'holiday', reason: '' });
     load();

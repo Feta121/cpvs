@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
+import StudentProfileModal from '../../components/coordinator/StudentProfileModal';
 import Badge from '../../components/ui/Badge';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { Profile, Student } from '../../types/database';
@@ -32,6 +33,7 @@ export default function CoordinatorStudents() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [batchFilter, setBatchFilter] = useState('all');
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [issuedCreds, setIssuedCreds] = useState<{ username: string; tempPassword: string; cpvsId: string; universityId: string; loginEmail: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -254,7 +256,11 @@ export default function CoordinatorStudents() {
               <tbody className="divide-y divide-surface-line">
                 {rows.map((s) => (
                   <tr key={s.id}>
-                    <td className="px-5 py-3 font-medium text-ink-900">{s.profile?.full_name ?? '(profile missing)'}</td>
+                    <td className="px-5 py-3 font-medium text-ink-900">
+                      <button onClick={() => setSelectedStudentId(s.id)} className="text-left hover:text-clinical-600 hover:underline">
+                        {s.profile?.full_name ?? '(profile missing)'}
+                      </button>
+                    </td>
                     <td className="px-5 py-3 text-ink-500">{s.university_id ?? '—'}</td>
                     <td className="px-5 py-3 text-ink-500">{s.student_id}</td>
                     <td className="px-5 py-3 text-ink-500">{s.program ?? s.department}</td>
@@ -296,6 +302,10 @@ export default function CoordinatorStudents() {
           </div>
         </div>
       ))}
+
+      {selectedStudentId && (
+        <StudentProfileModal studentId={selectedStudentId} onClose={() => setSelectedStudentId(null)} />
+      )}
     </div>
   );
 }

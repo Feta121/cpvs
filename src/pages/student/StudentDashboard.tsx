@@ -4,6 +4,7 @@ import { Hospital as HospitalIcon, UserRound, Percent, CheckCircle2, Megaphone, 
 import { differenceInCalendarDays, format, subWeeks, startOfWeek } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { fetchProfilesById } from '../../utils/fetchProfiles';
 import StatCard from '../../components/ui/StatCard';
 import Badge from '../../components/ui/Badge';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
@@ -15,16 +16,17 @@ import type { Rotation, Hospital, Profile, AttendanceRecord, Announcement, Atten
 const PRESENT_LIKE: AttendanceStatus[] = ['present', 'late', 'very_late'];
 const WEEKS_OF_TREND = 8;
 
-/** Counts Mon–Fri days in [start, end] inclusive — used as the "required
- * clinical days" denominator for the Clinical Progress ring, derived from
- * the rotation's own start/end dates (real data, not fabricated). */
+/** Counts clinical practice days (Mon/Tue/Wed only — no practice Thu–Sun)
+ * in [start, end] inclusive — used as the "required clinical days"
+ * denominator for the Clinical Progress ring, derived from the rotation's
+ * own start/end dates (real data, not fabricated). */
 function countWeekdays(start: Date, end: Date): number {
   if (end < start) return 0;
   let count = 0;
   const cur = new Date(start);
   while (cur <= end) {
-    const day = cur.getDay();
-    if (day !== 0 && day !== 6) count++;
+    const day = cur.getDay(); // 0=Sun ... 6=Sat
+    if (day === 1 || day === 2 || day === 3) count++; // Mon, Tue, Wed
     cur.setDate(cur.getDate() + 1);
   }
   return count;
@@ -33,7 +35,7 @@ function countWeekdays(start: Date, end: Date): number {
 export default function StudentDashboard() {
   const { profile, student } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [rotation, setRotation] = useState<(Rotation & { hospital: Hospital; coordinator: Profile }) | null>(null);
+  const [rotation, setRotation] = useState<(Rotation & { hospital: Hospital; coordinator: Profile | null }) | null>(null);
   const [attendancePct, setAttendancePct] = useState<number | null>(null);
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -49,13 +51,30 @@ export default function StudentDashboard() {
     (async () => {
       const today = new Date().toISOString().slice(0, 10);
 
-      const { data: rotationData } = await supabase
+      // FIX: this used to embed `coordinator:profiles!rotations_coordinator_id_fkey(*)`,
+      // but rotations.coordinator_id references coordinators(id), not
+      // profiles(id) — there's no such foreign key, so PostgREST rejected
+      // the whole query and rotationData silently came back null. That's
+      // what made an assigned rotation look like "no active rotation",
+      // "Unassigned", and coordinator "-" all at once. Fetching the
+      // coordinator's profile as a separate, safe query and merging it in
+      // fixes all three.
+      const { data: rotationData, error: rotationError } = await supabase
         .from('rotations')
-        .select('*, hospital:hospitals(*), coordinator:profiles!rotations_coordinator_id_fkey(*)')
+        .select('*, hospital:hospitals(*)')
         .eq('student_id', student.id)
         .eq('status', 'active')
         .maybeSingle();
-      setRotation(rotationData as any);
+
+      if (rotationError) {
+        console.error('[CPVS] Failed to load active rotation:', rotationError.message);
+        setRotation(null);
+      } else if (rotationData) {
+        const profileMap = await fetchProfilesById([rotationData.coordinator_id]);
+        setRotation({ ...(rotationData as any), coordinator: profileMap.get(rotationData.coordinator_id) ?? null });
+      } else {
+        setRotation(null);
+      }
 
       const { data: allAttendance } = await supabase
         .from('attendance')

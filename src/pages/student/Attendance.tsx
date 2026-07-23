@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MapPin, LogIn, LogOut, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
+import { MapPin, LogIn, LogOut, AlertCircle, Loader2, CheckCircle2, CalendarX2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { getCurrentPosition, isWithinGeofence, resolveAttendanceStatus, statusColors } from '../../utils/geofence';
@@ -8,6 +8,14 @@ import Badge from '../../components/ui/Badge';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 
 type Phase = 'idle' | 'locating' | 'error' | 'out-of-range' | 'expired' | 'ready-checkin' | 'ready-checkout' | 'done';
+
+/** Clinical practice runs Monday/Tuesday/Wednesday only — mirrors the same
+ * rule the mark-absences Edge Function uses when a rotation has no explicit
+ * `schedules` rows of its own. */
+function isClinicalDay(date: Date) {
+  const day = date.getDay(); // 0=Sun ... 6=Sat
+  return day === 1 || day === 2 || day === 3;
+}
 
 export default function StudentAttendance() {
   const { student } = useAuth();
@@ -18,6 +26,7 @@ export default function StudentAttendance() {
   const [message, setMessage] = useState<string>('');
   const [distance, setDistance] = useState<number | null>(null);
   const [working, setWorking] = useState(false);
+  const [noPracticeReason, setNoPracticeReason] = useState<string | null>(null);
 
   useEffect(() => {
     if (!student) return;
@@ -35,6 +44,40 @@ export default function StudentAttendance() {
       .eq('status', 'active')
       .maybeSingle();
     setRotation(rotationData as any);
+
+    if (rotationData) {
+      // Respect an explicit schedule for this rotation if one exists;
+      // otherwise fall back to the standard Mon/Tue/Wed clinical days.
+      const { data: scheduleRows } = await supabase
+        .from('schedules')
+        .select('date')
+        .eq('rotation_id', rotationData.id);
+
+      const hasExplicitSchedule = (scheduleRows ?? []).length > 0;
+      const todayIsScheduled = hasExplicitSchedule
+        ? (scheduleRows ?? []).some((r) => r.date === dateStr)
+        : isClinicalDay(new Date());
+
+      if (!todayIsScheduled) {
+        setNoPracticeReason('No clinical practice today — practice runs Monday, Tuesday, and Wednesday.');
+      } else {
+        // Practice exceptions (holiday / hospital closure / cancelled day),
+        // either global or specific to this rotation's hospital.
+        const { data: exceptionRows } = await supabase
+          .from('practice_exceptions')
+          .select('type, reason, hospital_id')
+          .eq('date', dateStr);
+        const applicable = (exceptionRows ?? []).find((e) => e.hospital_id === null || e.hospital_id === rotationData.hospital_id);
+        if (applicable) {
+          const typeLabel = applicable.type === 'holiday' ? 'Holiday' : applicable.type === 'closure' ? 'Hospital closure' : 'Cancelled clinical day';
+          setNoPracticeReason(`No practice today — ${typeLabel}${applicable.reason ? `: ${applicable.reason}` : ''}.`);
+        } else {
+          setNoPracticeReason(null);
+        }
+      }
+    } else {
+      setNoPracticeReason(null);
+    }
 
     const { data: attendanceData } = await supabase
       .from('attendance')
@@ -170,6 +213,24 @@ export default function StudentAttendance() {
       <div className="surface-card p-8 text-center">
         <AlertCircle className="mx-auto mb-3 text-ink-300" size={28} />
         <p className="text-sm text-ink-500">You don't have an active rotation assigned yet. Contact your coordinator.</p>
+      </div>
+    );
+  }
+
+  if (noPracticeReason) {
+    return (
+      <div className="mx-auto max-w-lg space-y-6">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-ink-900">Check in</h1>
+          <p className="mt-1 text-sm text-ink-500">{rotation.hospital.name}</p>
+        </div>
+        <div className="surface-card flex flex-col items-center gap-3 p-10 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-clinical-50 text-clinical-600">
+            <CalendarX2 size={22} />
+          </div>
+          <p className="text-sm font-medium text-ink-900">{noPracticeReason}</p>
+          <p className="text-xs text-ink-500">This day won't count as an absence.</p>
+        </div>
       </div>
     );
   }

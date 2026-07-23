@@ -1,4 +1,5 @@
 import { LucideIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 
 export default function StatCard({
@@ -7,12 +8,15 @@ export default function StatCard({
   icon: Icon,
   tone = 'clinical',
   hint,
+  to,
 }: {
   label: string;
   value: string | number;
   icon: LucideIcon;
   tone?: 'clinical' | 'vital' | 'late' | 'verylate' | 'expired';
   hint?: string;
+  /** Optional route — when set, the whole card becomes a clickable link. */
+  to?: string;
 }) {
   const toneMap: Record<string, string> = {
     clinical: 'bg-clinical-50 text-clinical-600',
@@ -22,8 +26,8 @@ export default function StatCard({
     expired: 'bg-status-expired/10 text-status-expired',
   };
 
-  return (
-    <div className="glass-card p-5 animate-fadeUp">
+  const content = (
+    <div className={clsx('glass-card p-5 animate-fadeUp', to && 'transition-shadow hover:shadow-card cursor-pointer')}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</p>
@@ -36,4 +40,13 @@ export default function StatCard({
       </div>
     </div>
   );
+
+  if (to) {
+    return (
+      <Link to={to} className="block">
+        {content}
+      </Link>
+    );
+  }
+  return content;
 }

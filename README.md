@@ -103,7 +103,11 @@ select cron.unschedule('cpvs-mark-absences-nightly'); -- if it exists
 ```
 then re-run the updated `supabase/cron.sql`.
 
-## 8. Install and run locally
+## 8. Apply migration 0004 (fixes "(profile missing)" for good)
+
+If students ever show as "(profile missing)" anywhere in the coordinator UI — even ones created through the working Add Student flow — it's almost always the `profiles` table's Row Level Security silently filtering out rows for anyone other than the current user (RLS filtering doesn't error, it just returns fewer rows). Run `supabase/migrations/0004_profiles_rpc_and_notes.sql` in the SQL Editor: it adds a `SECURITY DEFINER` function (`get_profiles_by_ids`) that bypasses RLS entirely and does its own explicit coordinator-or-self check instead, so it works regardless of whatever the live RLS policy state actually is.
+
+## 9. Install and run locally
 
 ```bash
 npm install
@@ -112,7 +116,7 @@ npm run dev
 
 The app runs at `http://localhost:5173`.
 
-## 9. Deploy
+## 10. Deploy
 
 Build with `npm run build`; the static output in `dist/` can be deployed to Vercel, Netlify, Cloudflare Pages, or GitHub Pages. Remember to set the same two `VITE_SUPABASE_*` environment variables in your hosting provider.
 

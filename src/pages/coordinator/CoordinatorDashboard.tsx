@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Users, CheckCircle2, Clock, XCircle, FileWarning, TrendingUp, Hospital as HospitalIcon, ShieldAlert, Activity } from 'lucide-react';
+import { Users, CheckCircle2, Clock, XCircle, FileWarning, TrendingUp, Hospital as HospitalIcon, ShieldAlert, Activity, Repeat, LogOut, RefreshCw, Loader2 } from 'lucide-react';
 import { startOfWeek, format, subWeeks } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import StatCard from '../../components/ui/StatCard';
@@ -17,6 +18,7 @@ const WEEKS_OF_TREND = 8;
 
 export default function CoordinatorDashboard() {
   const { coordinator } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [batch, setBatch] = useState<string>('all');
   const [batches, setBatches] = useState<string[]>([]);
@@ -27,6 +29,8 @@ export default function CoordinatorDashboard() {
   const [hospitalCompliance, setHospitalCompliance] = useState<HospitalComplianceRow[]>([]);
   const [riskEntries, setRiskEntries] = useState<RiskEntry[]>([]);
   const [hospitalActivity, setHospitalActivity] = useState<HospitalActivity[]>([]);
+  const [pipeline, setPipeline] = useState({ added: 0, assigned: 0, checkedIn: 0, checkedOut: 0 });
+  const [runningCheck, setRunningCheck] = useState(false);
 
   useEffect(() => {
     if (!coordinator) return;
@@ -66,10 +70,46 @@ export default function CoordinatorDashboard() {
 
     setStats({ total: total ?? 0, present, late, absent, pendingAppeals: pendingAppeals ?? 0 });
 
+    // ---- New: onboarding/attendance pipeline counts ----
+    const [{ data: activeRotationRows }, { data: todayCheckins }] = await Promise.all([
+      supabase.from('rotations').select('student_id').eq('status', 'active'),
+      supabase.from('attendance').select('student_id, check_in_time, check_out_time').eq('date', today),
+    ]);
+    const scopedActiveRotations = (activeRotationRows ?? []).filter((r) => !batchStudentIds || batchStudentIds.has(r.student_id));
+    const scopedCheckins = (todayCheckins ?? []).filter((r) => !batchStudentIds || batchStudentIds.has(r.student_id));
+    setPipeline({
+      added: total ?? 0,
+      assigned: new Set(scopedActiveRotations.map((r) => r.student_id)).size,
+      checkedIn: scopedCheckins.filter((r) => r.check_in_time).length,
+      checkedOut: scopedCheckins.filter((r) => r.check_in_time && r.check_out_time).length,
+    });
+
     // ---- Everything below is new: analytics, compliance, risk, activity ----
     await Promise.all([loadTrendAndCompliance(batchStudentIds), loadRiskPanel(batchStudentIds), loadHospitalActivity(today)]);
 
     setLoading(false);
+  }
+
+  /**
+   * Manually triggers the mark-absences Edge Function for today. This is
+   * useful both to verify the function is deployed correctly, and as an
+   * on-demand fallback if the scheduled cron job (see supabase/cron.sql)
+   * hasn't been set up yet — it applies the exact same per-hospital
+   * session_expires_at cutoff logic the scheduled job uses.
+   */
+  async function runAbsenceCheck() {
+    setRunningCheck(true);
+    const { data, error } = await supabase.functions.invoke('mark-absences', { body: {} });
+    setRunningCheck(false);
+
+    const payloadError = (data as any)?.error;
+    if (error || payloadError) {
+      showError(payloadError ?? error?.message ?? 'Unable to run the absence check. Make sure the mark-absences function is deployed.');
+      return;
+    }
+    const marked = (data as any)?.marked_absent ?? 0;
+    showSuccess(marked > 0 ? `Marked ${marked} student(s) absent.` : 'No new absences to mark right now.');
+    loadData();
   }
 
   /** Clinical Practice Performance Analytics + Hospital Rotation Analytics. */
@@ -227,12 +267,18 @@ export default function CoordinatorDashboard() {
           <h1 className="font-display text-2xl font-semibold text-ink-900">Coordinator overview</h1>
           <p className="mt-1 text-sm text-ink-500">Today's snapshot across your assigned students.</p>
         </div>
-        <select value={batch} onChange={(e) => setBatch(e.target.value)} className="input-field w-auto">
-          <option value="all">All batches</option>
-          {batches.map((b) => (
-            <option key={b} value={b}>{b}</option>
-          ))}
-        </select>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={runAbsenceCheck} disabled={runningCheck} className="btn-secondary" title="Manually mark absent any student past their hospital's check-in cutoff with no record today">
+            {runningCheck ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+            Check for missed check-ins
+          </button>
+          <select value={batch} onChange={(e) => setBatch(e.target.value)} className="input-field w-auto">
+            <option value="all">All batches</option>
+            {batches.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -241,6 +287,24 @@ export default function CoordinatorDashboard() {
         <StatCard label="Late today" value={stats.late} icon={Clock} tone="late" />
         <StatCard label="Absent today" value={stats.absent} icon={XCircle} tone="expired" />
         <StatCard label="Pending appeals" value={stats.pendingAppeals} icon={FileWarning} tone="verylate" />
+      </div>
+
+      {/* Onboarding / attendance pipeline — click any card to jump to its page */}
+      <div>
+        <h2 className="mb-3 font-display text-sm font-semibold text-ink-700">Pipeline</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Students added" value={pipeline.added} icon={Users} tone="clinical" to="/coordinator/students" hint="View roster" />
+          <StatCard
+            label="Assigned to rotation"
+            value={`${pipeline.assigned} / ${pipeline.added}`}
+            icon={Repeat}
+            tone="vital"
+            to="/coordinator/rotations"
+            hint="Manage rotations"
+          />
+          <StatCard label="Checked in today" value={pipeline.checkedIn} icon={CheckCircle2} tone="late" to="/coordinator/attendance" hint="View attendance" />
+          <StatCard label="Checked out today" value={pipeline.checkedOut} icon={LogOut} tone="clinical" to="/coordinator/attendance" hint="View attendance" />
+        </div>
       </div>
 
       {/* Clinical Practice Performance Analytics */}

@@ -144,6 +144,24 @@ export interface PracticeException {
   reason: string | null;
   created_by: string | null;
   created_at: string;
+  /** Added in migration 0005. Null = applies to every batch. */
+  batch: string | null;
+  /** Added in migration 0005. Null = applies to every student. */
+  student_id: string | null;
+}
+
+/** Added in migration 0005. The inverse of a practice_exception — adds an
+ * extra clinical practice day on a date that wouldn't otherwise count
+ * (practice normally only runs Mon/Tue/Wed). */
+export interface SpecialPracticeDay {
+  id: string;
+  date: string;
+  hospital_id: string | null;
+  batch: string | null;
+  student_id: string | null;
+  reason: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 // Minimal Supabase generic Database shape so `createClient<Database>` type-checks.

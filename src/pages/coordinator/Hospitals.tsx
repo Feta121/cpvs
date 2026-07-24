@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import Badge from '../../components/ui/Badge';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import MapPicker from '../../components/ui/MapPicker';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { Hospital } from '../../types/database';
@@ -27,6 +28,7 @@ export default function CoordinatorHospitals() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Hospital | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
@@ -139,10 +141,14 @@ export default function CoordinatorHospitals() {
     load();
   }
 
-  async function handleDelete(h: Hospital) {
-    if (!window.confirm(`Delete "${h.name}"? This cannot be undone. Hospitals with existing rotations or attendance history can't be deleted — deactivate them instead.`)) {
-      return;
-    }
+  function handleDelete(h: Hospital) {
+    setPendingDelete(h);
+  }
+
+  async function confirmDelete() {
+    const h = pendingDelete;
+    if (!h) return;
+    setPendingDelete(null);
     setDeletingId(h.id);
     const { error } = await supabase.from('hospitals').delete().eq('id', h.id);
     setDeletingId(null);
@@ -299,6 +305,14 @@ export default function CoordinatorHospitals() {
           </div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={`Delete "${pendingDelete?.name}"?`}
+        message="This cannot be undone. Hospitals with existing rotations or attendance history can't be deleted — deactivate them instead if you just want to hide them from new assignments."
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

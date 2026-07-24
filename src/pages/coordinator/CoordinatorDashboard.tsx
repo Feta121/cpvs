@@ -108,7 +108,17 @@ export default function CoordinatorDashboard() {
       return;
     }
     const marked = (data as any)?.marked_absent ?? 0;
-    showSuccess(marked > 0 ? `Marked ${marked} student(s) absent.` : 'No new absences to mark right now.');
+    const skipped = (data as any)?.skipped ?? {};
+    if (marked > 0) {
+      showSuccess(`Marked ${marked} student(s) absent.`);
+    } else {
+      const reasons: string[] = [];
+      if (skipped.already_recorded) reasons.push(`${skipped.already_recorded} already have a record today`);
+      if (skipped.not_expected_day) reasons.push(`${skipped.not_expected_day} — today isn't a clinical day for them`);
+      if (skipped.exception_applies) reasons.push(`${skipped.exception_applies} covered by an exception`);
+      if (skipped.before_cutoff) reasons.push(`${skipped.before_cutoff} — their hospital's cutoff hasn't passed yet`);
+      showSuccess(reasons.length > 0 ? `No new absences. (${reasons.join('; ')})` : 'No active rotations to check.');
+    }
     loadData();
   }
 

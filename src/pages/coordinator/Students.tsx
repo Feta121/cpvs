@@ -6,6 +6,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import StudentProfileModal from '../../components/coordinator/StudentProfileModal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { Profile, Student } from '../../types/database';
@@ -32,6 +33,7 @@ export default function CoordinatorStudents() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<StudentRow | null>(null);
   const [batchFilter, setBatchFilter] = useState('all');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [issuedCreds, setIssuedCreds] = useState<{ username: string; tempPassword: string; cpvsId: string; universityId: string; loginEmail: string } | null>(null);
@@ -115,15 +117,14 @@ export default function CoordinatorStudents() {
     loadStudents();
   }
 
-  async function handleDelete(s: StudentRow) {
-    const confirmed = window.confirm(
-      `Delete ${s.profile?.full_name ?? 'this student'} (${s.student_id})?\n\n` +
-      `This PERMANENTLY deletes their login, profile, and ALL clinical records — ` +
-      `every rotation, attendance record, and appeal tied to them. This cannot be undone.\n\n` +
-      `Type OK to confirm you understand this removes their entire attendance history.`
-    );
-    if (!confirmed) return;
+  function handleDelete(s: StudentRow) {
+    setPendingDelete(s);
+  }
 
+  async function confirmDelete() {
+    const s = pendingDelete;
+    if (!s) return;
+    setPendingDelete(null);
     setDeletingId(s.id);
     const { data, error } = await supabase.functions.invoke('delete-student', { body: { studentId: s.id } });
     setDeletingId(null);
@@ -306,6 +307,14 @@ export default function CoordinatorStudents() {
       {selectedStudentId && (
         <StudentProfileModal studentId={selectedStudentId} onClose={() => setSelectedStudentId(null)} />
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={`Delete ${pendingDelete?.profile?.full_name ?? 'this student'}?`}
+        message={`This PERMANENTLY deletes their login, profile, and ALL clinical records — every rotation, attendance record, and appeal tied to them (CPVS ID: ${pendingDelete?.student_id}). This cannot be undone.`}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

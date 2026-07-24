@@ -1,27 +1,37 @@
 // Supabase Edge Function: mark-absences
 //
-// CHANGED: this used to run once nightly and only ever mark *yesterday*
-// absent. Per spec ("after 3pm ... mark absent, even if configurable"),
-// absence now needs to be marked shortly after each hospital's own cutoff
-// time on the SAME day — not the next day. So this function now:
-//   1. Computes "today" and the current time-of-day in Africa/Addis_Ababa
-//      (UTC+3, no DST — safe to hardcode the offset).
-//   2. For every active rotation whose hospital's `session_expires_at` has
-//      already passed (in Addis Ababa local time), and who has no attendance
-//      row yet for today, and today isn't a practice_exceptions day, inserts
-//      an `absent` row and notifies student + coordinator.
+// For every active rotation whose hospital's session_expires_at cutoff has
+// passed (Africa/Addis_Ababa time), and who has no attendance row yet today,
+// and today is an expected clinical day for them, inserts an `absent` row
+// and notifies student + coordinator.
 //
-// Schedule this to run every 15–30 minutes (see supabase/cron.sql) so each
-// hospital's cutoff is caught close to when it actually happens, since
-// different hospitals can have different session_expires_at values.
+// "Expected clinical day" logic, in order:
+//   1. If the rotation has explicit `schedules` rows, only those dates count.
+//   2. Otherwise, Monday/Tuesday/Wednesday count by default.
+//   3. A matching `special_practice_days` row FORCES the day to count, even
+//      outside Mon/Tue/Wed (e.g. a coordinator-added makeup day).
+//   4. A matching `practice_exceptions` row EXCLUDES the day, even if it
+//      would otherwise count (holiday/closure/cancellation).
+// Both exceptions and special days can be scoped to a hospital, a batch,
+// and/or a specific student — within one row, every non-null field must
+// match (AND); across rows, any single match applies (OR).
+//
+// Schedule this every 15–30 minutes (see supabase/cron.sql) since different
+// hospitals can have different session_expires_at cutoffs.
 //
 // Deploy with:
 //   supabase functions deploy mark-absences
 //
-// Manually test/backfill a specific date with:
+// Test/backfill a specific date (bypasses the cutoff-time check):
 //   supabase functions invoke mark-absences --body '{"date":"2026-07-18"}'
-// (omitting the time-of-day check — a manual/backfill call always applies,
-// regardless of current time, since you're asking for it explicitly.)
+//
+// DEBUGGING "it's not marking anyone absent": the response now includes a
+// `skipped` breakdown — e.g. { already_recorded: 2, not_expected_day: 5,
+// exception_applies: 1, before_cutoff: 3 }. If everything piles up under
+// `not_expected_day`, you're testing on a Thu–Sun with no special day added.
+// If it's all `before_cutoff`, the hospital's session_expires_at hasn't
+// passed yet in Addis Ababa time — use a manual `{"date": "..."}` call to
+// bypass that and confirm the rest of the logic works.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
@@ -49,14 +59,25 @@ function timeStringToMinutes(t: string) {
   return h * 60 + m;
 }
 
-/**
- * Clinical practice runs Monday, Tuesday, and Wednesday only — no practice
- * Thursday through Sunday. Used as the fallback "expected day" check when a
- * rotation has no explicit `schedules` rows of its own.
- */
+/** Clinical practice runs Monday, Tuesday, and Wednesday by default. */
 function isClinicalDay(dateStr: string) {
   const day = new Date(dateStr + 'T00:00:00Z').getUTCDay(); // 0=Sun ... 6=Sat
-  return day === 1 || day === 2 || day === 3; // Mon, Tue, Wed
+  return day === 1 || day === 2 || day === 3;
+}
+
+interface ScopedRow {
+  hospital_id: string | null;
+  batch: string | null;
+  student_id: string | null;
+}
+
+/** A scoped row (exception or special day) applies to this rotation if
+ * every non-null field on the row matches. */
+function matchesScope(row: ScopedRow, hospitalId: string, batch: string, studentId: string) {
+  if (row.hospital_id !== null && row.hospital_id !== hospitalId) return false;
+  if (row.batch !== null && row.batch !== batch) return false;
+  if (row.student_id !== null && row.student_id !== studentId) return false;
+  return true;
 }
 
 function json(body: unknown, status = 200) {
@@ -91,24 +112,31 @@ Deno.serve(async (req) => {
     const nowMinutes = timeOfDayMinutes(addisNow());
 
     // 1. Active rotations covering the target date, joined to their
-    //    hospital's cutoff time.
+    //    hospital's cutoff time and the student's batch (needed for scope
+    //    matching below).
     const { data: rotations, error: rotationsError } = await admin
       .from('rotations')
-      .select('id, student_id, hospital_id, coordinator_id, start_date, end_date, hospital:hospitals(session_expires_at)')
+      .select('id, student_id, hospital_id, coordinator_id, start_date, end_date, hospital:hospitals(session_expires_at), student:students(batch)')
       .eq('status', 'active')
       .lte('start_date', targetDate)
       .gte('end_date', targetDate);
     if (rotationsError) throw rotationsError;
     if (!rotations || rotations.length === 0) {
-      return json({ date: targetDate, checked: 0, marked_absent: 0 });
+      return json({ date: targetDate, checked: 0, marked_absent: 0, skipped: {} });
     }
 
-    // 2. Global + hospital-specific exceptions for this date.
-    const { data: exceptions } = await admin.from('practice_exceptions').select('hospital_id').eq('date', targetDate);
-    const exemptHospitalIds = new Set((exceptions ?? []).map((e) => e.hospital_id));
-    const hasGlobalException = (exceptions ?? []).some((e) => e.hospital_id === null);
+    // 2. Exceptions and special practice days for this date (both scopable
+    //    to hospital/batch/student — see matchesScope above).
+    const { data: exceptions } = await admin
+      .from('practice_exceptions')
+      .select('hospital_id, batch, student_id')
+      .eq('date', targetDate);
+    const { data: specialDays } = await admin
+      .from('special_practice_days')
+      .select('hospital_id, batch, student_id')
+      .eq('date', targetDate);
 
-    // 3. Explicit scheduled days, if any rotations use them.
+    // 3. Explicit per-rotation schedules, if any rotations use them.
     const rotationIds = rotations.map((r) => r.id);
     const { data: scheduleRows } = await admin.from('schedules').select('rotation_id, date').in('rotation_id', rotationIds);
     const scheduledDatesByRotation = new Map<string, Set<string>>();
@@ -123,19 +151,39 @@ Deno.serve(async (req) => {
 
     const toInsert: any[] = [];
     const notifications: any[] = [];
+    const skipped = { already_recorded: 0, not_expected_day: 0, exception_applies: 0, before_cutoff: 0 };
 
     for (const rotation of rotations as any[]) {
-      if (alreadyRecorded.has(rotation.student_id)) continue;
-      if (hasGlobalException || exemptHospitalIds.has(rotation.hospital_id)) continue;
+      const batch: string = rotation.student?.batch ?? '';
+
+      if (alreadyRecorded.has(rotation.student_id)) {
+        skipped.already_recorded++;
+        continue;
+      }
+
+      const exceptionApplies = (exceptions ?? []).some((e) => matchesScope(e, rotation.hospital_id, batch, rotation.student_id));
+      if (exceptionApplies) {
+        skipped.exception_applies++;
+        continue;
+      }
 
       const explicitSchedule = scheduledDatesByRotation.get(rotation.id);
-      const expected = explicitSchedule ? explicitSchedule.has(targetDate) : isClinicalDay(targetDate);
-      if (!expected) continue;
+      const specialDayApplies = (specialDays ?? []).some((s) => matchesScope(s, rotation.hospital_id, batch, rotation.student_id));
+      const expected = explicitSchedule
+        ? explicitSchedule.has(targetDate)
+        : specialDayApplies || isClinicalDay(targetDate);
+      if (!expected) {
+        skipped.not_expected_day++;
+        continue;
+      }
 
       // Skip if this hospital's cutoff hasn't passed yet today — unless this
       // is a manual/backfill call, which always applies regardless of time.
       const cutoffStr: string = rotation.hospital?.session_expires_at ?? '15:00:00';
-      if (!isManualCall && nowMinutes < timeStringToMinutes(cutoffStr)) continue;
+      if (!isManualCall && nowMinutes < timeStringToMinutes(cutoffStr)) {
+        skipped.before_cutoff++;
+        continue;
+      }
 
       toInsert.push({
         student_id: rotation.student_id,
@@ -167,7 +215,7 @@ Deno.serve(async (req) => {
       if (notifyError) throw notifyError;
     }
 
-    return json({ date: targetDate, checked: rotations.length, marked_absent: toInsert.length });
+    return json({ date: targetDate, checked: rotations.length, marked_absent: toInsert.length, skipped });
   } catch (err) {
     return json({ error: (err as Error).message }, 400);
   }

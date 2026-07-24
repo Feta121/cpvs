@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import Badge from '../../components/ui/Badge';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { Hospital, Student, Rotation, Profile } from '../../types/database';
 
@@ -21,6 +22,8 @@ export default function CoordinatorRotations() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingReassign, setPendingReassign] = useState<RotationRow | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<RotationRow | null>(null);
   const [batchFilter, setBatchFilter] = useState('all');
   const [form, setForm] = useState({ student_id: '', hospital_id: '', start_date: '', end_date: '' });
 
@@ -78,15 +81,14 @@ export default function CoordinatorRotations() {
     // student should only ever have one active rotation at a time.
     const existingActive = rotations.find((r) => r.student_id === form.student_id && r.status === 'active');
     if (existingActive) {
-      const confirmed = window.confirm(
-        `This student already has an active rotation at "${existingActive.hospital?.name ?? 'a hospital'}" ` +
-        `(${existingActive.start_date} → ${existingActive.end_date}).\n\n` +
-        `Assigning this new rotation will CANCEL that one. Their existing attendance history for it is kept, ` +
-        `but it will no longer accept new check-ins.\n\nContinue?`
-      );
-      if (!confirmed) return;
+      setPendingReassign(existingActive);
+      return;
     }
+    await saveRotation(null);
+  }
 
+  async function saveRotation(existingActive: RotationRow | null) {
+    setPendingReassign(null);
     setSubmitting(true);
 
     if (existingActive) {
@@ -119,14 +121,14 @@ export default function CoordinatorRotations() {
     load();
   }
 
-  async function handleDelete(r: RotationRow) {
-    const confirmed = window.confirm(
-      `Delete this rotation for ${r.student?.profile?.full_name ?? 'this student'} at ${r.hospital?.name ?? 'this hospital'}?\n\n` +
-      `This PERMANENTLY deletes every attendance record tied to this rotation — this cannot be undone.\n\n` +
-      `If you just want to end the rotation without losing attendance history, close this and change its status instead.`
-    );
-    if (!confirmed) return;
+  function handleDelete(r: RotationRow) {
+    setPendingDelete(r);
+  }
 
+  async function confirmDelete() {
+    const r = pendingDelete;
+    if (!r) return;
+    setPendingDelete(null);
     setDeletingId(r.id);
     const { error } = await supabase.from('rotations').delete().eq('id', r.id);
     setDeletingId(null);
@@ -236,6 +238,24 @@ export default function CoordinatorRotations() {
           </div>
         </div>
       ))}
+
+      <ConfirmDialog
+        open={!!pendingReassign}
+        title="Cancel the existing rotation?"
+        message={`This student already has an active rotation at "${pendingReassign?.hospital?.name ?? 'a hospital'}" (${pendingReassign?.start_date} → ${pendingReassign?.end_date}).\n\nAssigning this new rotation will cancel that one. Their existing attendance history for it is kept, but it will no longer accept new check-ins.`}
+        confirmLabel="Cancel previous & assign"
+        danger={false}
+        onConfirm={() => saveRotation(pendingReassign)}
+        onCancel={() => setPendingReassign(null)}
+      />
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this rotation?"
+        message={`This PERMANENTLY deletes every attendance record tied to ${pendingDelete?.student?.profile?.full_name ?? 'this student'}'s rotation at ${pendingDelete?.hospital?.name ?? 'this hospital'} — this cannot be undone.\n\nIf you just want to end the rotation without losing attendance history, cancel this and change its status instead.`}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

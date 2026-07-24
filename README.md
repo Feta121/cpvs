@@ -107,7 +107,15 @@ then re-run the updated `supabase/cron.sql`.
 
 If students ever show as "(profile missing)" anywhere in the coordinator UI — even ones created through the working Add Student flow — it's almost always the `profiles` table's Row Level Security silently filtering out rows for anyone other than the current user (RLS filtering doesn't error, it just returns fewer rows). Run `supabase/migrations/0004_profiles_rpc_and_notes.sql` in the SQL Editor: it adds a `SECURITY DEFINER` function (`get_profiles_by_ids`) that bypasses RLS entirely and does its own explicit coordinator-or-self check instead, so it works regardless of whatever the live RLS policy state actually is.
 
-## 9. Install and run locally
+## 9. Apply migration 0005 + redeploy `mark-absences`
+
+`supabase/migrations/0005_scoped_exceptions_and_special_days.sql` adds batch/student targeting to exceptions and a new `special_practice_days` table (the inverse of an exception — adds an extra clinical day, e.g. a makeup session, outside the normal Monday/Tuesday/Wednesday schedule). Run it in the SQL Editor, then redeploy the function since its logic now checks both:
+
+```bash
+supabase functions deploy mark-absences
+```
+
+## 10. Install and run locally
 
 ```bash
 npm install
@@ -116,7 +124,7 @@ npm run dev
 
 The app runs at `http://localhost:5173`.
 
-## 10. Deploy
+## 11. Deploy
 
 Build with `npm run build`; the static output in `dist/` can be deployed to Vercel, Netlify, Cloudflare Pages, or GitHub Pages. Remember to set the same two `VITE_SUPABASE_*` environment variables in your hosting provider.
 

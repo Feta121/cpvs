@@ -1,17 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Megaphone, Plus, Loader2, AlertTriangle } from 'lucide-react';
+import { Megaphone, Plus, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import Badge from '../../components/ui/Badge';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { Announcement } from '../../types/database';
 
 export default function CoordinatorAnnouncements() {
   const { coordinator } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Announcement | null>(null);
   const [form, setForm] = useState({ title: '', content: '', type: 'normal' as 'normal' | 'emergency', target_batch: '' });
 
   useEffect(() => {
@@ -20,7 +25,8 @@ export default function CoordinatorAnnouncements() {
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+    if (error) showError('Unable to load announcements. ' + error.message);
     setItems(data ?? []);
     setLoading(false);
   }
@@ -28,13 +34,19 @@ export default function CoordinatorAnnouncements() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    const { data: created } = await supabase.from('announcements').insert({
+    const { data: created, error } = await supabase.from('announcements').insert({
       coordinator_id: coordinator?.id,
       title: form.title,
       content: form.content,
       type: form.type,
       target_batch: form.target_batch || null,
     }).select().single();
+
+    if (error) {
+      setSubmitting(false);
+      showError('Unable to publish announcement. ' + error.message);
+      return;
+    }
 
     // Fan out a notification to every student (optionally filtered by batch).
     if (created) {
@@ -55,8 +67,29 @@ export default function CoordinatorAnnouncements() {
     }
 
     setSubmitting(false);
+    showSuccess('Announcement published.');
     setShowForm(false);
     setForm({ title: '', content: '', type: 'normal', target_batch: '' });
+    load();
+  }
+
+  function handleDelete(a: Announcement) {
+    setPendingDelete(a);
+  }
+
+  async function confirmDelete() {
+    const a = pendingDelete;
+    if (!a) return;
+    setPendingDelete(null);
+    setDeletingId(a.id);
+    const { error } = await supabase.from('announcements').delete().eq('id', a.id);
+    setDeletingId(null);
+
+    if (error) {
+      showError('Unable to delete announcement. ' + error.message);
+      return;
+    }
+    showSuccess('Announcement deleted.');
     load();
   }
 
@@ -97,26 +130,49 @@ export default function CoordinatorAnnouncements() {
               <input className="input-field" placeholder="e.g. 2024, leave blank for all" value={form.target_batch} onChange={(e) => setForm({ ...form, target_batch: e.target.value })} />
             </div>
           </div>
-          <button type="submit" disabled={submitting} className="btn-primary">
-            {submitting ? <Loader2 size={16} className="animate-spin" /> : <Megaphone size={16} />} Publish
-          </button>
+          <div className="flex gap-2">
+            <button type="submit" disabled={submitting} className="btn-primary">
+              {submitting ? <Loader2 size={16} className="animate-spin" /> : <Megaphone size={16} />} Publish
+            </button>
+            <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
+          </div>
         </form>
       )}
 
       <div className="space-y-3">
         {items.map((a) => (
           <div key={a.id} className={`surface-card p-5 ${a.type === 'emergency' ? 'border-l-4 border-l-status-expired' : ''}`}>
-            <div className="flex items-center gap-2">
-              {a.type === 'emergency' && <AlertTriangle size={14} className="text-status-expired" />}
-              <p className="font-medium text-ink-900">{a.title}</p>
-              {a.type === 'emergency' && <Badge tone="expired">Emergency</Badge>}
-              {a.target_batch && <Badge tone="clinical">Batch {a.target_batch}</Badge>}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {a.type === 'emergency' && <AlertTriangle size={14} className="text-status-expired" />}
+                  <p className="font-medium text-ink-900">{a.title}</p>
+                  {a.type === 'emergency' && <Badge tone="expired">Emergency</Badge>}
+                  {a.target_batch && <Badge tone="clinical">Batch {a.target_batch}</Badge>}
+                </div>
+                <p className="mt-2 text-sm text-ink-700">{a.content}</p>
+                <p className="mt-2 text-xs text-ink-300">{new Date(a.created_at).toLocaleString()}</p>
+              </div>
+              <button
+                onClick={() => handleDelete(a)}
+                disabled={deletingId === a.id}
+                title="Delete announcement"
+                className="shrink-0 rounded-lg border border-status-expired/30 p-1.5 text-status-expired hover:bg-status-expired/5"
+              >
+                {deletingId === a.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              </button>
             </div>
-            <p className="mt-2 text-sm text-ink-700">{a.content}</p>
-            <p className="mt-2 text-xs text-ink-300">{new Date(a.created_at).toLocaleString()}</p>
           </div>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title="Delete this announcement?"
+        message={`"${pendingDelete?.title}" will be permanently removed. Students who already saw the notification will keep it in their history.`}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

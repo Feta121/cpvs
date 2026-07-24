@@ -112,7 +112,7 @@ function NotificationsMenu() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 z-30 mt-2 w-80 overflow-hidden rounded-xl2 border border-surface-line bg-surface shadow-glass"
+            className="fixed inset-x-3 top-16 z-30 overflow-hidden rounded-xl2 border border-surface-line bg-surface shadow-glass sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80"
           >
             <div className="border-b border-surface-line px-4 py-3 text-sm font-semibold text-ink-900">Notifications</div>
             <div className="max-h-80 overflow-y-auto">
@@ -159,7 +159,7 @@ function ProfileMenu({ onSignOut }: { onSignOut: () => void }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-xl2 border border-surface-line bg-surface shadow-glass"
+            className="fixed inset-x-3 top-16 z-30 overflow-hidden rounded-xl2 border border-surface-line bg-surface shadow-glass sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-56"
           >
             <div className="border-b border-surface-line px-4 py-3">
               <p className="truncate text-sm font-medium text-ink-900">{profile?.full_name}</p>

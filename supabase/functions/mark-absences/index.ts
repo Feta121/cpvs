@@ -59,10 +59,17 @@ function timeStringToMinutes(t: string) {
   return h * 60 + m;
 }
 
-/** Clinical practice runs Monday, Tuesday, and Wednesday by default. */
-function isClinicalDay(dateStr: string) {
-  const day = new Date(dateStr + 'T00:00:00Z').getUTCDay(); // 0=Sun ... 6=Sat
-  return day === 1 || day === 2 || day === 3;
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+
+/** Reads the coordinator-editable weekly schedule (migration 0006). Falls
+ * back to Monday/Tuesday/Wednesday if the config row is somehow missing —
+ * matching the original hardcoded default so behavior never regresses. */
+async function isClinicalDay(admin: ReturnType<typeof createClient>, dateStr: string): Promise<boolean> {
+  const { data } = await admin.from('clinical_days_config').select('*').eq('id', true).maybeSingle();
+  const dayIndex = new Date(dateStr + 'T00:00:00Z').getUTCDay(); // 0=Sun ... 6=Sat
+  const key = DAY_KEYS[dayIndex];
+  if (!data) return key === 'monday' || key === 'tuesday' || key === 'wednesday';
+  return !!(data as any)[key];
 }
 
 interface ScopedRow {
@@ -136,6 +143,10 @@ Deno.serve(async (req) => {
       .select('hospital_id, batch, student_id')
       .eq('date', targetDate);
 
+    // 2b. The coordinator-editable weekly schedule (migration 0006),
+    // fetched once rather than per-rotation.
+    const defaultDayIsClinical = await isClinicalDay(admin, targetDate);
+
     // 3. Explicit per-rotation schedules, if any rotations use them.
     const rotationIds = rotations.map((r) => r.id);
     const { data: scheduleRows } = await admin.from('schedules').select('rotation_id, date').in('rotation_id', rotationIds);
@@ -171,7 +182,7 @@ Deno.serve(async (req) => {
       const specialDayApplies = (specialDays ?? []).some((s) => matchesScope(s, rotation.hospital_id, batch, rotation.student_id));
       const expected = explicitSchedule
         ? explicitSchedule.has(targetDate)
-        : specialDayApplies || isClinicalDay(targetDate);
+        : specialDayApplies || defaultDayIsClinical;
       if (!expected) {
         skipped.not_expected_day++;
         continue;

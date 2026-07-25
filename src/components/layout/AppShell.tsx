@@ -260,9 +260,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </motion.aside>
 
-      <main className="flex-1 overflow-y-auto">
-        {/* Desktop top bar — sticky, page title, search, notifications, theme, profile */}
-        <div className="sticky top-0 z-20 hidden items-center justify-between gap-4 border-b border-surface-line bg-surface/85 px-6 py-3.5 backdrop-blur-md md:flex">
+      <main className="flex-1">
+        {/* Desktop top bar — fixed (not sticky) so it's guaranteed to stay
+            pinned to the viewport regardless of how the scroll container
+            above ends up sized; offset to always sit beside the sidebar. */}
+        <div
+          style={{ left: collapsed ? 84 : 256 }}
+          className="fixed right-0 top-0 z-20 hidden items-center justify-between gap-4 border-b border-surface-line bg-surface/85 px-6 py-3.5 backdrop-blur-md transition-[left] duration-300 md:flex"
+        >
           <h1 className="font-display text-lg font-semibold text-ink-900">{activeItem?.label}</h1>
 
           <div className="relative flex-1 max-w-sm">
@@ -296,8 +301,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        {/* Mobile top bar */}
-        <div className="sticky top-0 z-20 flex items-center justify-between border-b border-surface-line bg-surface/85 px-4 py-3 backdrop-blur-md md:hidden">
+        {/* Mobile top bar — also fixed for the same reason */}
+        <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between border-b border-surface-line bg-surface/85 px-4 py-3 backdrop-blur-md md:hidden">
           <img src="/wordmark.png" alt="CPVS" className="h-9 w-auto dark:brightness-0 dark:invert" />
           <div className="flex items-center gap-1">
             <NotificationsMenu />
@@ -308,7 +313,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8 pb-24 md:pb-8">
+        {/* pt-[Nrem] compensates for the now-fixed topbar height so content
+            doesn't start underneath it */}
+        <div className="mx-auto max-w-6xl px-4 pt-20 pb-24 md:px-8 md:pt-24 md:pb-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

@@ -29,6 +29,7 @@ export default function CoordinatorHospitals() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Hospital | null>(null);
+  const [pendingForceDelete, setPendingForceDelete] = useState<Hospital | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
@@ -155,17 +156,33 @@ export default function CoordinatorHospitals() {
 
     if (error) {
       // Most likely a foreign key violation (rotations/attendance reference
-      // this hospital) — that's expected and desired: we never want to
-      // silently orphan attendance history. Guide the coordinator to the
-      // safe alternative instead of showing a raw Postgres error.
+      // this hospital) — offer the explicit force-delete escalation rather
+      // than a dead-end error, since some coordinators genuinely do want to
+      // remove a hospital along with its history.
       if (error.message.toLowerCase().includes('foreign key') || error.code === '23503') {
-        showError(`Unable to delete "${h.name}" — it has existing rotations or attendance records. Deactivate it instead to hide it from new assignments while preserving history.`);
+        setPendingForceDelete(h);
       } else {
         showError('Unable to delete hospital. ' + error.message);
       }
       return;
     }
     showSuccess(`"${h.name}" deleted.`);
+    load();
+  }
+
+  async function confirmForceDelete() {
+    const h = pendingForceDelete;
+    if (!h) return;
+    setPendingForceDelete(null);
+    setDeletingId(h.id);
+    const { error } = await supabase.rpc('force_delete_hospital', { target_hospital_id: h.id });
+    setDeletingId(null);
+
+    if (error) {
+      showError('Unable to force-delete hospital. ' + error.message);
+      return;
+    }
+    showSuccess(`"${h.name}" and all its rotations/attendance records were deleted.`);
     load();
   }
 
@@ -309,9 +326,18 @@ export default function CoordinatorHospitals() {
       <ConfirmDialog
         open={!!pendingDelete}
         title={`Delete "${pendingDelete?.name}"?`}
-        message="This cannot be undone. Hospitals with existing rotations or attendance history can't be deleted — deactivate them instead if you just want to hide them from new assignments."
+        message="If this hospital has no rotations or attendance history, this deletes it permanently. If it does, you'll be offered the option to force-delete it along with that history."
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={!!pendingForceDelete}
+        title={`Force-delete "${pendingForceDelete?.name}"?`}
+        message={`This hospital has existing rotations and/or attendance records. Force-deleting PERMANENTLY removes the hospital along with every rotation, attendance record, appeal, and schedule tied to it — this cannot be undone.\n\nIf you just want to hide it from new assignments while keeping the history, cancel this and use Deactivate instead.`}
+        confirmLabel="Force delete everything"
+        onConfirm={confirmForceDelete}
+        onCancel={() => setPendingForceDelete(null)}
       />
     </div>
   );

@@ -115,7 +115,20 @@ If students ever show as "(profile missing)" anywhere in the coordinator UI — 
 supabase functions deploy mark-absences
 ```
 
-## 10. Install and run locally
+## 10. Apply migrations 0006 + 0007, redeploy `mark-absences` again
+
+`supabase/migrations/0006_grants_and_clinical_days_config.sql`:
+- Fixes a "permission denied for table special_practice_days" error — that table was missing a basic `GRANT` (a different, more fundamental layer than RLS), not an RLS misconfiguration.
+- Adds `clinical_days_config` — a single-row table backing the new "Weekly clinical schedule" toggle card on the coordinator dashboard (defaults to Mon/Tue/Wed on, matching prior hardcoded behavior).
+
+`supabase/migrations/0007_force_delete_hospital.sql` adds a `force_delete_hospital` RPC so a hospital with existing rotations/attendance can still be deleted if a coordinator explicitly confirms it (cascading the deletion through appeals → attendance → schedules → rotations → the hospital itself, in that order).
+
+Run both in the SQL Editor, then redeploy the function once more since it now reads `clinical_days_config`:
+```bash
+supabase functions deploy mark-absences
+```
+
+## 11. Install and run locally
 
 ```bash
 npm install
@@ -124,7 +137,7 @@ npm run dev
 
 The app runs at `http://localhost:5173`.
 
-## 11. Deploy
+## 12. Deploy
 
 Build with `npm run build`; the static output in `dist/` can be deployed to Vercel, Netlify, Cloudflare Pages, or GitHub Pages. Remember to set the same two `VITE_SUPABASE_*` environment variables in your hosting provider.
 

@@ -11,6 +11,7 @@ import AttendanceTrendChart, { TrendPoint } from '../../components/dashboard/Att
 import HospitalComplianceBars, { HospitalComplianceRow } from '../../components/dashboard/HospitalComplianceBars';
 import StudentRiskPanel, { RiskEntry, RiskSeverity } from '../../components/dashboard/StudentRiskPanel';
 import HospitalActivityMap, { HospitalActivity } from '../../components/dashboard/HospitalActivityMap';
+import ClinicalDaysCard from '../../components/dashboard/ClinicalDaysCard';
 import type { AttendanceStatus } from '../../types/database';
 
 const PRESENT_LIKE: AttendanceStatus[] = ['present', 'late', 'very_late'];
@@ -31,6 +32,8 @@ export default function CoordinatorDashboard() {
   const [hospitalActivity, setHospitalActivity] = useState<HospitalActivity[]>([]);
   const [pipeline, setPipeline] = useState({ added: 0, assigned: 0, checkedIn: 0, checkedOut: 0 });
   const [runningCheck, setRunningCheck] = useState(false);
+  const [backfillDate, setBackfillDate] = useState('');
+  const [runningBackfill, setRunningBackfill] = useState(false);
 
   useEffect(() => {
     if (!coordinator) return;
@@ -118,6 +121,42 @@ export default function CoordinatorDashboard() {
       if (skipped.exception_applies) reasons.push(`${skipped.exception_applies} covered by an exception`);
       if (skipped.before_cutoff) reasons.push(`${skipped.before_cutoff} — their hospital's cutoff hasn't passed yet`);
       showSuccess(reasons.length > 0 ? `No new absences. (${reasons.join('; ')})` : 'No active rotations to check.');
+    }
+    loadData();
+  }
+
+  /**
+   * Runs the same check but for a specific PAST date instead of today —
+   * e.g. a student was assigned a rotation starting on a clinical day that
+   * already passed, with no check-in recorded, and should be retroactively
+   * marked absent. A manual date always bypasses the cutoff-time check (see
+   * mark-absences), since there's no "hasn't happened yet" concern for a
+   * past date.
+   */
+  async function runBackfill() {
+    if (!backfillDate) {
+      showError('Pick a date to check first.');
+      return;
+    }
+    setRunningBackfill(true);
+    const { data, error } = await supabase.functions.invoke('mark-absences', { body: { date: backfillDate } });
+    setRunningBackfill(false);
+
+    const payloadError = (data as any)?.error;
+    if (error || payloadError) {
+      showError(payloadError ?? error?.message ?? 'Unable to run the backfill check.');
+      return;
+    }
+    const marked = (data as any)?.marked_absent ?? 0;
+    const skipped = (data as any)?.skipped ?? {};
+    if (marked > 0) {
+      showSuccess(`Marked ${marked} student(s) absent for ${backfillDate}.`);
+    } else {
+      const reasons: string[] = [];
+      if (skipped.already_recorded) reasons.push(`${skipped.already_recorded} already had a record`);
+      if (skipped.not_expected_day) reasons.push(`${skipped.not_expected_day} — not a clinical day`);
+      if (skipped.exception_applies) reasons.push(`${skipped.exception_applies} covered by an exception`);
+      showSuccess(reasons.length > 0 ? `No absences marked for ${backfillDate}. (${reasons.join('; ')})` : `No active rotations covered ${backfillDate}.`);
     }
     loadData();
   }
@@ -282,6 +321,19 @@ export default function CoordinatorDashboard() {
             {runningCheck ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
             Check for missed check-ins
           </button>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={backfillDate}
+              onChange={(e) => setBackfillDate(e.target.value)}
+              className="input-field w-auto"
+              title="Retroactively check a past date for missed check-ins"
+            />
+            <button onClick={runBackfill} disabled={runningBackfill} className="btn-secondary" title="Mark absent any student who missed a check-in on this past date">
+              {runningBackfill ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+              Backfill
+            </button>
+          </div>
           <select value={batch} onChange={(e) => setBatch(e.target.value)} className="input-field w-auto">
             <option value="all">All batches</option>
             {batches.map((b) => (
@@ -356,6 +408,8 @@ export default function CoordinatorDashboard() {
         </div>
         <HospitalActivityMap hospitals={hospitalActivity} />
       </div>
+
+      <ClinicalDaysCard />
     </div>
   );
 }

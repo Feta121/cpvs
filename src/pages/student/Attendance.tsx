@@ -9,12 +9,14 @@ import FullScreenLoader from '../../components/ui/FullScreenLoader';
 
 type Phase = 'idle' | 'locating' | 'error' | 'out-of-range' | 'expired' | 'ready-checkin' | 'ready-checkout' | 'done';
 
-/** Clinical practice runs Monday/Tuesday/Wednesday only — mirrors the same
- * rule the mark-absences Edge Function uses when a rotation has no explicit
- * `schedules` rows of its own. */
-function isClinicalDay(date: Date) {
-  const day = date.getDay(); // 0=Sun ... 6=Sat
-  return day === 1 || day === 2 || day === 3;
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+
+/** A row (exception or special day) applies if every non-null scope field matches. */
+function matchesScope(row: { hospital_id: string | null; batch: string | null; student_id: string | null }, hospitalId: string, batch: string, studentId: string) {
+  if (row.hospital_id !== null && row.hospital_id !== hospitalId) return false;
+  if (row.batch !== null && row.batch !== batch) return false;
+  if (row.student_id !== null && row.student_id !== studentId) return false;
+  return true;
 }
 
 export default function StudentAttendance() {
@@ -46,34 +48,45 @@ export default function StudentAttendance() {
     setRotation(rotationData as any);
 
     if (rotationData) {
-      // Respect an explicit schedule for this rotation if one exists;
-      // otherwise fall back to the standard Mon/Tue/Wed clinical days.
-      const { data: scheduleRows } = await supabase
-        .from('schedules')
-        .select('date')
-        .eq('rotation_id', rotationData.id);
+      const batch = student?.batch ?? '';
 
-      const hasExplicitSchedule = (scheduleRows ?? []).length > 0;
-      const todayIsScheduled = hasExplicitSchedule
-        ? (scheduleRows ?? []).some((r) => r.date === dateStr)
-        : isClinicalDay(new Date());
+      // Practice exceptions (holiday / hospital closure / cancelled day),
+      // scoped to hospital/batch/student — checked first since it can
+      // override an otherwise-normal clinical day.
+      const { data: exceptionRows } = await supabase
+        .from('practice_exceptions')
+        .select('type, reason, hospital_id, batch, student_id')
+        .eq('date', dateStr);
+      const applicableException = (exceptionRows ?? []).find((e) => matchesScope(e, rotationData.hospital_id, batch, student!.id));
 
-      if (!todayIsScheduled) {
-        setNoPracticeReason('No clinical practice today — practice runs Monday, Tuesday, and Wednesday.');
+      if (applicableException) {
+        const typeLabel = applicableException.type === 'holiday' ? 'Holiday' : applicableException.type === 'closure' ? 'Hospital closure' : 'Cancelled clinical day';
+        setNoPracticeReason(`No practice today — ${typeLabel}${applicableException.reason ? `: ${applicableException.reason}` : ''}.`);
       } else {
-        // Practice exceptions (holiday / hospital closure / cancelled day),
-        // either global or specific to this rotation's hospital.
-        const { data: exceptionRows } = await supabase
-          .from('practice_exceptions')
-          .select('type, reason, hospital_id')
+        // Respect an explicit per-rotation schedule if one exists; otherwise
+        // check the coordinator's weekly schedule (clinical_days_config,
+        // migration 0006 — defaults to Mon/Tue/Wed), with any
+        // special_practice_days entry able to force an extra day on.
+        const [{ data: scheduleRows }, { data: dayConfig }] = await Promise.all([
+          supabase.from('schedules').select('date').eq('rotation_id', rotationData.id),
+          supabase.from('clinical_days_config').select('*').eq('id', true).maybeSingle(),
+        ]);
+
+        const { data: specialDays } = await supabase
+          .from('special_practice_days')
+          .select('hospital_id, batch, student_id')
           .eq('date', dateStr);
-        const applicable = (exceptionRows ?? []).find((e) => e.hospital_id === null || e.hospital_id === rotationData.hospital_id);
-        if (applicable) {
-          const typeLabel = applicable.type === 'holiday' ? 'Holiday' : applicable.type === 'closure' ? 'Hospital closure' : 'Cancelled clinical day';
-          setNoPracticeReason(`No practice today — ${typeLabel}${applicable.reason ? `: ${applicable.reason}` : ''}.`);
-        } else {
-          setNoPracticeReason(null);
-        }
+
+        const hasExplicitSchedule = (scheduleRows ?? []).length > 0;
+        const dayIndex = new Date().getDay();
+        const defaultDayIsClinical = dayConfig ? !!(dayConfig as any)[DAY_KEYS[dayIndex]] : dayIndex === 1 || dayIndex === 2 || dayIndex === 3;
+        const specialDayApplies = (specialDays ?? []).some((s) => matchesScope(s, rotationData.hospital_id, batch, student!.id));
+
+        const todayIsScheduled = hasExplicitSchedule
+          ? (scheduleRows ?? []).some((r) => r.date === dateStr)
+          : specialDayApplies || defaultDayIsClinical;
+
+        setNoPracticeReason(todayIsScheduled ? null : 'No clinical practice today — check with your coordinator for the current schedule.');
       }
     } else {
       setNoPracticeReason(null);

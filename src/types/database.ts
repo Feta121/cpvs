@@ -164,6 +164,21 @@ export interface SpecialPracticeDay {
   created_at: string;
 }
 
+/** Added in migration 0006. Single-row (id is always `true`) coordinator-
+ * editable weekly schedule — replaces the previously hardcoded Mon/Tue/Wed. */
+export interface ClinicalDaysConfig {
+  id: true;
+  monday: boolean;
+  tuesday: boolean;
+  wednesday: boolean;
+  thursday: boolean;
+  friday: boolean;
+  saturday: boolean;
+  sunday: boolean;
+  updated_by: string | null;
+  updated_at: string;
+}
+
 // Minimal Supabase generic Database shape so `createClient<Database>` type-checks.
 // Regenerate with `supabase gen types typescript` once your project is live
 // for full compile-time query safety.

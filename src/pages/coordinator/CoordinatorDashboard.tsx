@@ -34,7 +34,6 @@ export default function CoordinatorDashboard() {
   const [hospitalActivity, setHospitalActivity] = useState<HospitalActivity[]>([]);
   const [pipeline, setPipeline] = useState({ added: 0, assigned: 0, checkedIn: 0, checkedOut: 0 });
   const [runningCheck, setRunningCheck] = useState(false);
-  const [backfillDate, setBackfillDate] = useState('');
   const [runningBackfill, setRunningBackfill] = useState(false);
 
   useEffect(() => {
@@ -130,37 +129,57 @@ export default function CoordinatorDashboard() {
   }
 
   /**
-   * Runs the same check but for a specific PAST date instead of today —
-   * e.g. a student was assigned a rotation starting on a clinical day that
-   * already passed, with no check-in recorded, and should be retroactively
-   * marked absent. A manual date always bypasses the cutoff-time check (see
-   * mark-absences), since there's no "hasn't happened yet" concern for a
-   * past date.
+   * Walks forward day-by-day from the last successful backfill through
+   * today, running the same absence check on every day in between — so a
+   * coordinator who missed checking for a while can just click one button
+   * instead of picking each missed date individually. Capped at 60 days on
+   * a first-ever run (no last_backfill_date yet) to keep it bounded.
    */
   async function runBackfill() {
-    if (!backfillDate) {
-      showError('Pick a date to check first.');
-      return;
-    }
     setRunningBackfill(true);
-    const { data, error } = await invokeEdgeFunction('mark-absences', { date: backfillDate });
-    setRunningBackfill(false);
 
-    if (error) {
-      showError(error);
+    const { data: statusRow } = await supabase.from('system_status').select('last_backfill_date').eq('id', true).maybeSingle();
+    const lastDate = (statusRow as any)?.last_backfill_date
+      ? new Date((statusRow as any).last_backfill_date + 'T00:00:00Z')
+      : new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+
+    const today = new Date();
+    const dates: string[] = [];
+    const cursor = new Date(lastDate);
+    cursor.setUTCDate(cursor.getUTCDate() + 1); // start the day AFTER the last check
+    while (cursor <= today) {
+      dates.push(cursor.toISOString().slice(0, 10));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    if (dates.length === 0) {
+      setRunningBackfill(false);
+      showSuccess("Already up to date — nothing to backfill.");
       return;
     }
-    const marked = (data as any)?.marked_absent ?? 0;
-    const skipped = (data as any)?.skipped ?? {};
-    if (marked > 0) {
-      showSuccess(`Marked ${marked} student(s) absent for ${backfillDate}.`);
-    } else {
-      const reasons: string[] = [];
-      if (skipped.already_recorded) reasons.push(`${skipped.already_recorded} already had a record`);
-      if (skipped.not_expected_day) reasons.push(`${skipped.not_expected_day} — not a clinical day`);
-      if (skipped.exception_applies) reasons.push(`${skipped.exception_applies} covered by an exception`);
-      showSuccess(reasons.length > 0 ? `No absences marked for ${backfillDate}. (${reasons.join('; ')})` : `No active rotations covered ${backfillDate}.`);
+
+    let totalMarked = 0;
+    let daysWithIssues = 0;
+    for (const dateStr of dates) {
+      const { data, error } = await invokeEdgeFunction('mark-absences', { date: dateStr });
+      if (error) {
+        setRunningBackfill(false);
+        showError(`Backfill stopped at ${dateStr}: ${error}`);
+        return;
+      }
+      const marked = (data as any)?.marked_absent ?? 0;
+      totalMarked += marked;
+      if (marked > 0) daysWithIssues++;
     }
+
+    await supabase.from('system_status').update({ last_backfill_date: dates[dates.length - 1] }).eq('id', true);
+
+    setRunningBackfill(false);
+    showSuccess(
+      totalMarked > 0
+        ? `Checked ${dates.length} day(s) — marked ${totalMarked} absence(s) across ${daysWithIssues} day(s).`
+        : `Checked ${dates.length} day(s) — no missed check-ins found.`
+    );
     loadData();
   }
 
@@ -324,19 +343,10 @@ export default function CoordinatorDashboard() {
             {runningCheck ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
             Check for missed check-ins
           </button>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="date"
-              value={backfillDate}
-              onChange={(e) => setBackfillDate(e.target.value)}
-              className="input-field w-auto"
-              title="Retroactively check a past date for missed check-ins"
-            />
-            <button onClick={runBackfill} disabled={runningBackfill} className="btn-secondary" title="Mark absent any student who missed a check-in on this past date">
-              {runningBackfill ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-              Backfill
-            </button>
-          </div>
+          <button onClick={runBackfill} disabled={runningBackfill} className="btn-secondary" title="Checks every day since the last backfill (or up to 60 days back) through today, marking any missed check-ins absent">
+            {runningBackfill ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+            Backfill
+          </button>
           <select value={batch} onChange={(e) => setBatch(e.target.value)} className="input-field w-auto">
             <option value="all">All batches</option>
             {batches.map((b) => (

@@ -5,13 +5,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
-import Badge from '../../components/ui/Badge';
+import BatchAttendanceAccordion from '../../components/coordinator/BatchAttendanceAccordion';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { AttendanceRecord, Hospital, Student, Profile, AttendanceStatus } from '../../types/database';
 
 type Row = AttendanceRecord & { student: (Student & { profile: Profile | null }) | null; hospital: Hospital | null };
-
-const statusOptions: AttendanceStatus[] = ['present', 'late', 'very_late', 'absent', 'excused'];
 
 export default function CoordinatorAttendance() {
   const { coordinator } = useAuth();
@@ -125,49 +123,13 @@ export default function CoordinatorAttendance() {
       )}
 
       {groupedByBatch.map(([batch, batchRows]) => (
-        <div key={batch} className="space-y-3">
-          <h2 className="font-display text-sm font-semibold text-ink-700">Batch {batch} <span className="font-normal text-ink-300">({batchRows.length})</span></h2>
-          <div className="surface-card overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-surface-line text-xs uppercase tracking-wide text-ink-300">
-                <tr>
-                  <th className="px-5 py-3 font-medium">Date</th>
-                  <th className="px-5 py-3 font-medium">Student</th>
-                  <th className="px-5 py-3 font-medium">Hospital</th>
-                  <th className="px-5 py-3 font-medium">Check-in</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Correct</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-line">
-                {batchRows.map((r) => (
-                  <tr key={r.id}>
-                    <td className="px-5 py-3 text-ink-500">{r.date}</td>
-                    <td className="px-5 py-3 font-medium text-ink-900">{r.student?.profile?.full_name ?? '(profile missing)'}</td>
-                    <td className="px-5 py-3 text-ink-500">{r.hospital?.name ?? '—'}</td>
-                    <td className="px-5 py-3 text-ink-500">{r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '—'}</td>
-                    <td className="px-5 py-3">
-                      <Badge tone={r.status === 'present' ? 'present' : r.status === 'late' ? 'late' : r.status === 'very_late' ? 'verylate' : r.status === 'absent' ? 'expired' : 'neutral'}>
-                        {r.status?.replace('_', ' ') ?? 'unknown'}
-                      </Badge>
-                      {r.corrected_by && <span className="ml-2 text-[10px] text-ink-300">edited</span>}
-                    </td>
-                    <td className="px-5 py-3">
-                      <select
-                        value={r.status}
-                        onChange={(e) => correctStatus(r.id, e.target.value as AttendanceStatus)}
-                        className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs text-ink-900"
-                        style={{ colorScheme: preference }}
-                      >
-                        {statusOptions.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <BatchAttendanceAccordion
+          key={batch}
+          batch={batch}
+          rows={batchRows}
+          colorScheme={preference}
+          onCorrectStatus={correctStatus}
+        />
       ))}
     </div>
   );

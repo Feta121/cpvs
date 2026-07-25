@@ -260,7 +260,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </motion.aside>
 
-      <main className="flex-1">
+      <main className="min-w-0 flex-1">
         {/* Desktop top bar — fixed (not sticky) so it's guaranteed to stay
             pinned to the viewport regardless of how the scroll container
             above ends up sized; offset to always sit beside the sidebar. */}

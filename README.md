@@ -128,7 +128,15 @@ Run both in the SQL Editor, then redeploy the function once more since it now re
 supabase functions deploy mark-absences
 ```
 
-## 11. Install and run locally
+## 11. Apply migrations 0008 + 0009
+
+`supabase/migrations/0008_system_status.sql` adds a `system_status` table the coordinator dashboard reads to show "Last automatic check: N minutes ago" — visible proof the scheduled `mark-absences` cron job is actually executing, not just correct in theory.
+
+`supabase/migrations/0009_last_backfill_date.sql` adds `last_backfill_date` to that same table, so the dashboard's "Backfill" button can auto-detect the gap since the last check and walk forward through today, instead of requiring a manually picked date.
+
+Run both in the SQL Editor.
+
+## 12. Install and run locally
 
 ```bash
 npm install
@@ -137,7 +145,7 @@ npm run dev
 
 The app runs at `http://localhost:5173`.
 
-## 12. Deploy
+## 13. Deploy
 
 Build with `npm run build`; the static output in `dist/` can be deployed to Vercel, Netlify, Cloudflare Pages, or GitHub Pages. Remember to set the same two `VITE_SUPABASE_*` environment variables in your hosting provider.
 

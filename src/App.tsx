@@ -24,11 +24,40 @@ import CoordinatorAnnouncements from './pages/coordinator/Announcements';
 import CoordinatorExceptions from './pages/coordinator/Exceptions';
 
 function RoleHome() {
-  const { loading, profile } = useAuth();
-  if (loading) return <FullScreenLoader />;
+  const { loading, profile, authError, refreshProfile } = useAuth();
+
+  // Required flow: Login -> check authenticated user -> fetch profile ->
+  // determine role -> navigate. Each step below is an explicit branch so a
+  // failure at any point is visible instead of falling through to a blank
+  // screen.
+  if (loading) return <FullScreenLoader label="Loading your account…" />;
+
+  if (authError && !profile) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-muted px-4 text-center">
+        <p className="max-w-sm text-sm text-ink-700">{authError}</p>
+        <button onClick={() => refreshProfile()} className="btn-primary">Try again</button>
+      </div>
+    );
+  }
+
   if (!profile) return <Navigate to="/login" replace />;
   if (profile.must_change_password) return <Navigate to="/change-password" replace />;
-  return <Navigate to={profile.role === 'coordinator' ? '/coordinator' : '/student'} replace />;
+
+  switch (profile.role) {
+    case 'student':
+      return <Navigate to="/student" replace />;
+    case 'coordinator':
+      return <Navigate to="/coordinator" replace />;
+    default:
+      // Unrecognized role on the profile row — fail visibly rather than
+      // silently redirecting somewhere wrong.
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-2 bg-surface-muted px-4 text-center">
+          <p className="text-sm text-ink-700">Your account role ("{profile.role}") isn't recognized. Contact support.</p>
+        </div>
+      );
+  }
 }
 
 export default function App() {

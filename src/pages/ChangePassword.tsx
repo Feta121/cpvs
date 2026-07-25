@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { KeyRound, Loader2, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,7 +9,6 @@ export default function ChangePassword() {
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -35,20 +34,33 @@ export default function ChangePassword() {
     }
 
     if (profile) {
-      await supabase.from('profiles').update({ must_change_password: false }).eq('id', profile.id);
-    }
-    await refreshProfile();
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ must_change_password: false })
+    .eq('id', profile.id)
+    .select();
+
+  console.log("DATA:", data);
+  console.log("ERROR:", error);
+
+  if (error) {
+    setError(error.message);
     setSubmitting(false);
-    navigate('/', { replace: true });
+    return;
   }
+}
+
+await refreshProfile();
+setSubmitting(false);
+navigate("/", { replace: true });
+}
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4">
       <div className="w-full max-w-md animate-fadeUp">
         <div className="mb-8 flex flex-col items-center text-center">
-          <img src="/wordmark.png" alt="CPVS" className="mb-4 h-14 w-auto dark:brightness-0 dark:invert" />
-          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-vital-600 text-white shadow-glass">
-            <KeyRound size={20} />
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-vital-600 text-white shadow-glass">
+            <KeyRound size={22} />
           </div>
           <h1 className="font-display text-xl font-semibold text-ink-900">Set a new password</h1>
           <p className="mt-1 text-sm text-ink-500">
@@ -58,33 +70,19 @@ export default function ChangePassword() {
 
         <form onSubmit={handleSubmit} className="glass-card space-y-4 p-7">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink-700">
-              New password <span className="text-status-expired">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                className="input-field pr-10"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((s) => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-300 hover:text-ink-500"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-700">New password</label>
+            <input
+              type="password"
+              className="input-field"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink-700">
-              Confirm password <span className="text-status-expired">*</span>
-            </label>
+            <label className="mb-1.5 block text-sm font-medium text-ink-700">Confirm password</label>
             <input
-              type={showPassword ? 'text' : 'password'}
+              type="password"
               className="input-field"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

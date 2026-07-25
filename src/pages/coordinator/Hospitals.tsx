@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Hospital as HospitalIcon, Loader2, Pencil, Trash2, Power, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -31,10 +31,21 @@ export default function CoordinatorHospitals() {
   const [pendingDelete, setPendingDelete] = useState<Hospital | null>(null);
   const [pendingForceDelete, setPendingForceDelete] = useState<Hospital | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     load();
   }, []);
+
+  // Scroll the form into view whenever it opens — since the topbar is now
+  // fixed (see AppShell.tsx), account for its height so the form doesn't
+  // end up peeking out from underneath it.
+  useEffect(() => {
+    if (showForm && formRef.current) {
+      const y = formRef.current.getBoundingClientRect().top + window.scrollY - 96;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  }, [showForm]);
 
   async function load() {
     setLoading(true);
@@ -201,7 +212,7 @@ export default function CoordinatorHospitals() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="surface-card space-y-4 p-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="surface-card space-y-4 p-6">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold text-ink-900">{editingId ? 'Edit hospital' : 'Add hospital'}</h2>
             <button type="button" onClick={closeForm} className="text-ink-300 hover:text-ink-500">

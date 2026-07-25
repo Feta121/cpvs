@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from 'react-leaflet';
-import L, { LeafletMouseEvent } from 'leaflet';
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -46,7 +46,7 @@ export default function MapPicker({
   const hasPoint = latitude !== null && longitude !== null;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-surface-line">
+    <div className="isolate overflow-hidden rounded-xl border border-surface-line">
       <MapContainer center={center} zoom={hasPoint ? 16 : 12} style={{ height: '280px', width: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

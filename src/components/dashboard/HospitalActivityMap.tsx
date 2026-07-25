@@ -22,7 +22,7 @@ export default function HospitalActivityMap({ hospitals }: { hospitals: Hospital
   const withCoords = hospitals.filter((h) => h.latitude && h.longitude);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-surface-line">
+    <div className="isolate overflow-hidden rounded-xl border border-surface-line">
       <MapContainer center={ADDIS_CENTER} zoom={11} style={{ height: '320px', width: '100%' }} scrollWheelZoom={false}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

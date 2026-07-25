@@ -1,5 +1,29 @@
-node_modules
-dist
+# Node
+node_modules/
+
+# Build output
+dist/
+
+# Environment
 .env
 .env.local
+
+# macOS
 .DS_Store
+
+# VS Code
+.vscode/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Android generated files (safe to ignore)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+
+# Logs
+*.log

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Users, CheckCircle2, Clock, XCircle, FileWarning, TrendingUp, Hospital as HospitalIcon, ShieldAlert, Activity, Repeat, LogOut, RefreshCw, Loader2 } from 'lucide-react';
-import { startOfWeek, format, subWeeks } from 'date-fns';
+import { startOfWeek, format, subWeeks, formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
+import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import StatCard from '../../components/ui/StatCard';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import AttendanceTrendChart, { TrendPoint } from '../../components/dashboard/AttendanceTrendChart';
@@ -24,6 +25,7 @@ export default function CoordinatorDashboard() {
   const [batch, setBatch] = useState<string>('all');
   const [batches, setBatches] = useState<string[]>([]);
   const [stats, setStats] = useState({ total: 0, present: 0, late: 0, absent: 0, pendingAppeals: 0 });
+  const [lastRun, setLastRun] = useState<{ at: string | null; count: number | null }>({ at: null, count: null });
 
   // New: dashboard analytics state (additive — nothing above this line changed behavior)
   const [trend, setTrend] = useState<TrendPoint[]>([]);
@@ -44,6 +46,9 @@ export default function CoordinatorDashboard() {
   async function loadData() {
     setLoading(true);
     const today = new Date().toISOString().slice(0, 10);
+
+    const { data: statusRow } = await supabase.from('system_status').select('*').eq('id', true).maybeSingle();
+    setLastRun({ at: (statusRow as any)?.last_mark_absences_run ?? null, count: (statusRow as any)?.last_mark_absences_marked_count ?? null });
 
     const { data: studentBatches } = await supabase.from('students').select('batch');
     setBatches(Array.from(new Set((studentBatches ?? []).map((s) => s.batch))));
@@ -102,12 +107,11 @@ export default function CoordinatorDashboard() {
    */
   async function runAbsenceCheck() {
     setRunningCheck(true);
-    const { data, error } = await supabase.functions.invoke('mark-absences', { body: {} });
+    const { data, error } = await invokeEdgeFunction('mark-absences', {});
     setRunningCheck(false);
 
-    const payloadError = (data as any)?.error;
-    if (error || payloadError) {
-      showError(payloadError ?? error?.message ?? 'Unable to run the absence check. Make sure the mark-absences function is deployed.');
+    if (error) {
+      showError(error);
       return;
     }
     const marked = (data as any)?.marked_absent ?? 0;
@@ -139,12 +143,11 @@ export default function CoordinatorDashboard() {
       return;
     }
     setRunningBackfill(true);
-    const { data, error } = await supabase.functions.invoke('mark-absences', { body: { date: backfillDate } });
+    const { data, error } = await invokeEdgeFunction('mark-absences', { date: backfillDate });
     setRunningBackfill(false);
 
-    const payloadError = (data as any)?.error;
-    if (error || payloadError) {
-      showError(payloadError ?? error?.message ?? 'Unable to run the backfill check.');
+    if (error) {
+      showError(error);
       return;
     }
     const marked = (data as any)?.marked_absent ?? 0;
@@ -341,6 +344,28 @@ export default function CoordinatorDashboard() {
             ))}
           </select>
         </div>
+      </div>
+
+      {/* Proof the automatic (cron-scheduled) absence check is actually
+          running, not just theoretically correct — turns red/stale if the
+          cron job from supabase/cron.sql isn't actually scheduled. */}
+      <div className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs ${
+        !lastRun.at
+          ? 'border-status-verylate/30 bg-status-verylate/5 text-status-verylate'
+          : Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000
+          ? 'border-status-expired/30 bg-status-expired/5 text-status-expired'
+          : 'border-vital-200 bg-vital-50 text-vital-700'
+      }`}>
+        {!lastRun.at ? (
+          <>⚠ Automatic absence check has never run — the mark-absences function may not be deployed, or the cron job from supabase/cron.sql isn't scheduled yet.</>
+        ) : (
+          <>
+            {Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000 ? '⚠ ' : '✓ '}
+            Last automatic check: {formatDistanceToNow(new Date(lastRun.at), { addSuffix: true })}
+            {lastRun.count !== null && lastRun.count > 0 ? ` — marked ${lastRun.count} absent` : ''}
+            {Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000 ? ' (stale — check that the cron job is still scheduled)' : ''}
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">

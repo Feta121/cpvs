@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
+import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import StudentProfileModal from '../../components/coordinator/StudentProfileModal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
@@ -82,12 +83,11 @@ export default function CoordinatorStudents() {
     }
 
     setSubmitting(true);
-    const { data, error } = await supabase.functions.invoke('create-student', { body: form });
+    const { data, error } = await invokeEdgeFunction('create-student', form);
     setSubmitting(false);
 
-    const payloadError = (data as any)?.error;
-    if (error || payloadError) {
-      showError(payloadError ?? error?.message ?? 'Unable to add student. Please try again or check your connection.');
+    if (error) {
+      showError(error);
       return;
     }
 
@@ -126,12 +126,11 @@ export default function CoordinatorStudents() {
     if (!s) return;
     setPendingDelete(null);
     setDeletingId(s.id);
-    const { data, error } = await supabase.functions.invoke('delete-student', { body: { studentId: s.id } });
+    const { error } = await invokeEdgeFunction('delete-student', { studentId: s.id });
     setDeletingId(null);
 
-    const payloadError = (data as any)?.error;
-    if (error || payloadError) {
-      showError(payloadError ?? error?.message ?? 'Unable to delete student.');
+    if (error) {
+      showError(error);
       return;
     }
     showSuccess(`${s.profile?.full_name ?? 'Student'} deleted.`);

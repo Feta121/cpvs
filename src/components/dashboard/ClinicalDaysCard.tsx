@@ -74,29 +74,35 @@ export default function ClinicalDaysCard() {
       {loading || !config ? (
         <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-ink-300" /></div>
       ) : (
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+        <div className="grid grid-cols-4 gap-3 sm:grid-cols-7">
           {DAYS.map((d) => {
             const active = config[d.key];
             return (
-              <button
+              <div
                 key={d.key}
-                onClick={() => toggle(d.key)}
-                disabled={savingKey === d.key}
-                className={`flex flex-col items-center gap-2 rounded-xl border p-3 transition-colors ${
-                  active ? 'border-vital-300 bg-vital-50' : 'border-surface-line bg-surface-muted'
+                className={`flex flex-col items-center gap-3 rounded-xl border p-3 transition-colors ${
+                  active ? 'border-vital-200 bg-vital-50' : 'border-surface-line'
                 }`}
               >
                 <span className={`text-xs font-semibold ${active ? 'text-vital-700' : 'text-ink-500'}`}>{d.label}</span>
-                <span
-                  className={`relative h-5 w-9 rounded-full transition-colors ${active ? 'bg-vital-500' : 'bg-ink-300/40'}`}
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={active}
+                  aria-label={`${d.label} clinical day`}
+                  onClick={() => toggle(d.key)}
+                  disabled={savingKey === d.key}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-60 ${
+                    active ? 'bg-vital-500' : 'bg-ink-300/50'
+                  }`}
                 >
                   <span
-                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                      active ? 'translate-x-4' : 'translate-x-0.5'
+                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                      active ? 'translate-x-5' : 'translate-x-0'
                     }`}
                   />
-                </span>
-              </button>
+                </button>
+              </div>
             );
           })}
         </div>

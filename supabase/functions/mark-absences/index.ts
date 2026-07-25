@@ -129,6 +129,10 @@ Deno.serve(async (req) => {
       .gte('end_date', targetDate);
     if (rotationsError) throw rotationsError;
     if (!rotations || rotations.length === 0) {
+      await admin.from('system_status').update({
+        last_mark_absences_run: new Date().toISOString(),
+        last_mark_absences_marked_count: 0,
+      }).eq('id', true);
       return json({ date: targetDate, checked: 0, marked_absent: 0, skipped: {} });
     }
 
@@ -224,6 +228,18 @@ Deno.serve(async (req) => {
 
       const { error: notifyError } = await admin.from('notifications').insert(notifications);
       if (notifyError) throw notifyError;
+    }
+
+    // Record proof-of-execution — but only for a real "today" check (cron or
+    // the dashboard's "Check for missed check-ins" button), not a backfill
+    // call for some arbitrary past date, since the point of this timestamp
+    // is specifically to prove the live, cutoff-respecting automation is
+    // still executing.
+    if (!isManualCall) {
+      await admin.from('system_status').update({
+        last_mark_absences_run: new Date().toISOString(),
+        last_mark_absences_marked_count: toInsert.length,
+      }).eq('id', true);
     }
 
     return json({ date: targetDate, checked: rotations.length, marked_absent: toInsert.length, skipped });

@@ -347,7 +347,7 @@ export default function CoordinatorDashboard() {
             {runningBackfill ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
             Backfill
           </button>
-          <select value={batch} onChange={(e) => setBatch(e.target.value)} className="input-field w-auto">
+          <select value={batch} onChange={(e) => setBatch(e.target.value)} className="input-field w-full sm:w-56">
             <option value="all">All batches</option>
             {batches.map((b) => (
               <option key={b} value={b}>{b}</option>

@@ -44,7 +44,13 @@ export default function CoordinatorAttendance() {
         .from('attendance')
         .select('*, student:students(*), hospital:hospitals(*)')
         .order('date', { ascending: false })
-        .limit(200);
+        // The old flat table capped at 200 rows to stay readable — now that
+        // records are organized into a collapsed-by-default Batch -> Month
+        // -> Day accordion, loading far more doesn't hurt rendering (nothing
+        // renders until a coordinator actually expands a day), so this is
+        // raised substantially to actually solve the "gets messy at scale"
+        // problem instead of just hiding it behind a low limit.
+        .limit(5000);
 
       if (hospitalFilter !== 'all') query = query.eq('hospital_id', hospitalFilter);
       if (studentFilter !== 'all') query = query.eq('student_id', studentFilter);
@@ -104,15 +110,15 @@ export default function CoordinatorAttendance() {
       )}
 
       <div className="flex flex-wrap gap-3">
-        <select value={hospitalFilter} onChange={(e) => setHospitalFilter(e.target.value)} className="input-field w-auto">
+        <select value={hospitalFilter} onChange={(e) => setHospitalFilter(e.target.value)} className="input-field w-full sm:w-56">
           <option value="all">All hospitals</option>
           {hospitals.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
         </select>
-        <select value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)} className="input-field w-auto">
+        <select value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)} className="input-field w-full sm:w-56">
           <option value="all">All students</option>
           {students.map((s) => <option key={s.id} value={s.id}>{s.profile?.full_name ?? '(profile missing)'}</option>)}
         </select>
-        <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="input-field w-auto">
+        <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="input-field w-full sm:w-56">
           <option value="all">All batches</option>
           {batches.map((b) => <option key={b} value={b}>Batch {b}</option>)}
         </select>
@@ -129,6 +135,7 @@ export default function CoordinatorAttendance() {
           rows={batchRows}
           colorScheme={preference}
           onCorrectStatus={correctStatus}
+          isSingleStudent={studentFilter !== 'all'}
         />
       ))}
     </div>

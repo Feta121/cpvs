@@ -147,7 +147,7 @@ export default function CoordinatorStudents() {
           <p className="mt-1 text-sm text-ink-500">Manage student accounts and clinical status.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="input-field w-auto">
+          <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="input-field w-full sm:w-56">
             <option value="all">All batches</option>
             {batches.map((b) => <option key={b} value={b}>Batch {b}</option>)}
           </select>

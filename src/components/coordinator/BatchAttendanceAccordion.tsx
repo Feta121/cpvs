@@ -35,16 +35,35 @@ function groupByDay(rows: Row[]): [string, Row[]][] {
   return Array.from(groups.entries()).sort(([a], [b]) => b.localeCompare(a));
 }
 
+function StatusSelect({ row, colorScheme, onCorrectStatus }: { row: Row; colorScheme: 'light' | 'dark'; onCorrectStatus: (id: string, status: AttendanceStatus) => void }) {
+  return (
+    <select
+      value={row.status}
+      onChange={(e) => onCorrectStatus(row.id, e.target.value as AttendanceStatus)}
+      className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs text-ink-900"
+      style={{ colorScheme }}
+    >
+      {statusOptions.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+    </select>
+  );
+}
+
 export default function BatchAttendanceAccordion({
   batch,
   rows,
   colorScheme,
   onCorrectStatus,
+  isSingleStudent = false,
 }: {
   batch: string;
   rows: Row[];
   colorScheme: 'light' | 'dark';
   onCorrectStatus: (id: string, status: AttendanceStatus) => void;
+  /** When true (a specific student is filtered), clicking a month shows a
+   * flat table of that whole month's records with Date + Day columns,
+   * instead of drilling into individual days — day-by-day navigation isn't
+   * useful when there's only ever one student per day anyway. */
+  isSingleStudent?: boolean;
 }) {
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
@@ -69,72 +88,110 @@ export default function BatchAttendanceAccordion({
       <div className="surface-card divide-y divide-surface-line overflow-hidden">
         {months.map(([monthKey, monthLabel, monthRows]) => {
           const monthOpen = expandedMonth === monthKey;
-          const days = groupByDay(monthRows);
 
           return (
             <div key={monthKey}>
+              {/* Level 1: month */}
               <button
                 onClick={() => toggleMonth(monthKey)}
-                className="flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-surface-muted"
+                className={`flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors ${
+                  monthOpen ? 'bg-clinical-50' : 'hover:bg-surface-muted'
+                }`}
               >
-                <span className="flex items-center gap-2 text-sm font-medium text-ink-900">
-                  <CalendarDays size={15} className="text-clinical-600" />
+                <span className={`flex items-center gap-2 text-sm font-medium ${monthOpen ? 'text-clinical-700' : 'text-ink-900'}`}>
+                  <CalendarDays size={15} className={monthOpen ? 'text-clinical-600' : 'text-ink-300'} />
                   {monthLabel}
                 </span>
                 <span className="flex items-center gap-2 text-xs text-ink-300">
                   {monthRows.length} record{monthRows.length === 1 ? '' : 's'}
-                  <ChevronRight size={15} className={`transition-transform ${monthOpen ? 'rotate-90' : ''}`} />
+                  <ChevronRight size={15} className={`transition-transform ${monthOpen ? 'rotate-90 text-clinical-600' : ''}`} />
                 </span>
               </button>
 
-              {monthOpen && (
-                <div className="divide-y divide-surface-line border-t border-surface-line bg-surface-muted/40">
-                  {days.map(([date, dayRows]) => {
+              {monthOpen && isSingleStudent && (
+                // Single-student view: skip the day level entirely and show
+                // the whole month at once, with explicit Date + Day columns.
+                <div className="overflow-x-auto border-l-2 border-clinical-200 border-t border-surface-line bg-surface-muted/40 pl-4">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-surface-line text-xs uppercase tracking-wide text-ink-300">
+                      <tr>
+                        <th className="px-4 py-2.5 font-medium">Date</th>
+                        <th className="px-4 py-2.5 font-medium">Day</th>
+                        <th className="px-4 py-2.5 font-medium">Hospital</th>
+                        <th className="px-4 py-2.5 font-medium">Check-in</th>
+                        <th className="px-4 py-2.5 font-medium">Status</th>
+                        <th className="px-4 py-2.5 font-medium">Correct</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-line bg-surface">
+                      {[...monthRows].sort((a, b) => b.date.localeCompare(a.date)).map((r) => (
+                        <tr key={r.id}>
+                          <td className="px-4 py-2.5 text-ink-500">{format(new Date(r.date + 'T00:00:00'), 'MMM d, yyyy')}</td>
+                          <td className="px-4 py-2.5 text-ink-500">{format(new Date(r.date + 'T00:00:00'), 'EEEE')}</td>
+                          <td className="px-4 py-2.5 text-ink-500">{r.hospital?.name ?? '—'}</td>
+                          <td className="px-4 py-2.5 text-ink-500">{r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '—'}</td>
+                          <td className="px-4 py-2.5">
+                            <Badge tone={badgeTone(r.status)}>{r.status?.replace('_', ' ') ?? 'unknown'}</Badge>
+                            {r.corrected_by && <span className="ml-2 text-[10px] text-ink-300">edited</span>}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <StatusSelect row={r} colorScheme={colorScheme} onCorrectStatus={onCorrectStatus} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {monthOpen && !isSingleStudent && (
+                // All-students view: drill down one more level, into days.
+                <div className="divide-y divide-surface-line border-l-2 border-clinical-200 border-t border-surface-line bg-surface-muted/40">
+                  {groupByDay(monthRows).map(([date, dayRows]) => {
                     const dayOpen = expandedDay === date;
                     return (
                       <div key={date}>
+                        {/* Level 2: day */}
                         <button
                           onClick={() => toggleDay(date)}
-                          className="flex w-full items-center justify-between py-2.5 pl-9 pr-5 text-left transition-colors hover:bg-surface-muted"
+                          className={`flex w-full items-center justify-between py-2.5 pl-8 pr-5 text-left transition-colors ${
+                            dayOpen ? 'bg-vital-50' : 'hover:bg-surface-muted'
+                          }`}
                         >
-                          <span className="text-sm text-ink-700">{format(new Date(date + 'T00:00:00'), 'EEEE, MMM d')}</span>
+                          <span className={`text-sm ${dayOpen ? 'font-medium text-vital-700' : 'text-ink-700'}`}>
+                            {format(new Date(date + 'T00:00:00'), 'EEEE, MMM d')}
+                          </span>
                           <span className="flex items-center gap-2 text-xs text-ink-300">
                             {dayRows.length} student{dayRows.length === 1 ? '' : 's'}
-                            <ChevronRight size={13} className={`transition-transform ${dayOpen ? 'rotate-90' : ''}`} />
+                            <ChevronRight size={13} className={`transition-transform ${dayOpen ? 'rotate-90 text-vital-600' : ''}`} />
                           </span>
                         </button>
 
                         {dayOpen && (
-                          <div className="overflow-x-auto border-t border-surface-line bg-surface">
+                          // Level 3: students for that day
+                          <div className="overflow-x-auto border-l-2 border-vital-200 border-t border-surface-line bg-surface pl-4">
                             <table className="w-full text-left text-sm">
                               <thead className="border-b border-surface-line text-xs uppercase tracking-wide text-ink-300">
                                 <tr>
-                                  <th className="px-5 py-2.5 font-medium">Student</th>
-                                  <th className="px-5 py-2.5 font-medium">Hospital</th>
-                                  <th className="px-5 py-2.5 font-medium">Check-in</th>
-                                  <th className="px-5 py-2.5 font-medium">Status</th>
-                                  <th className="px-5 py-2.5 font-medium">Correct</th>
+                                  <th className="px-4 py-2.5 font-medium">Student</th>
+                                  <th className="px-4 py-2.5 font-medium">Hospital</th>
+                                  <th className="px-4 py-2.5 font-medium">Check-in</th>
+                                  <th className="px-4 py-2.5 font-medium">Status</th>
+                                  <th className="px-4 py-2.5 font-medium">Correct</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-surface-line">
                                 {dayRows.map((r) => (
                                   <tr key={r.id}>
-                                    <td className="px-5 py-2.5 font-medium text-ink-900">{r.student?.profile?.full_name ?? '(profile missing)'}</td>
-                                    <td className="px-5 py-2.5 text-ink-500">{r.hospital?.name ?? '—'}</td>
-                                    <td className="px-5 py-2.5 text-ink-500">{r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '—'}</td>
-                                    <td className="px-5 py-2.5">
+                                    <td className="px-4 py-2.5 font-medium text-ink-900">{r.student?.profile?.full_name ?? '(profile missing)'}</td>
+                                    <td className="px-4 py-2.5 text-ink-500">{r.hospital?.name ?? '—'}</td>
+                                    <td className="px-4 py-2.5 text-ink-500">{r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '—'}</td>
+                                    <td className="px-4 py-2.5">
                                       <Badge tone={badgeTone(r.status)}>{r.status?.replace('_', ' ') ?? 'unknown'}</Badge>
                                       {r.corrected_by && <span className="ml-2 text-[10px] text-ink-300">edited</span>}
                                     </td>
-                                    <td className="px-5 py-2.5">
-                                      <select
-                                        value={r.status}
-                                        onChange={(e) => onCorrectStatus(r.id, e.target.value as AttendanceStatus)}
-                                        className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs text-ink-900"
-                                        style={{ colorScheme }}
-                                      >
-                                        {statusOptions.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                                      </select>
+                                    <td className="px-4 py-2.5">
+                                      <StatusSelect row={r} colorScheme={colorScheme} onCorrectStatus={onCorrectStatus} />
                                     </td>
                                   </tr>
                                 ))}

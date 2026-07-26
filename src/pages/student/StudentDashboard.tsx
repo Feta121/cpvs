@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import StatCard from '../../components/ui/StatCard';
+import DashboardBanner from '../../components/ui/DashboardBanner';
 import Badge from '../../components/ui/Badge';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import ProgressRing from '../../components/dashboard/ProgressRing';
@@ -193,6 +194,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-6">
+      <DashboardBanner />
       {/* Personal Clinical Profile Header */}
       <div className="glass-card flex flex-wrap items-center gap-5 p-6">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-vital-100 text-2xl font-semibold text-vital-700">

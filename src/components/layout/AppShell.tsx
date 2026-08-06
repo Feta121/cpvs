@@ -5,6 +5,7 @@ import {
   LayoutDashboard, MapPin, CalendarClock, FileWarning, Bell, BellPlus, User,
   Users, Hospital, Repeat, ClipboardList, Megaphone, CalendarX2, LogOut,
   Sun, Moon, PanelLeftClose, PanelLeftOpen, Search, ChevronDown,
+  type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -16,7 +17,17 @@ import { useToast } from '../../context/ToastContext';
 import clsx from 'clsx';
 import type { NotificationRow } from '../../types/database';
 
-const studentNav = [
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+  /** Groups items under a heading in the desktop sidebar. Items without one
+   * (studentNav) render flat, unchanged. */
+  section?: string;
+}
+
+const studentNav: NavItem[] = [
   { to: '/student', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/student/attendance', label: 'Check In', icon: MapPin },
   { to: '/student/history', label: 'Attendance History', icon: CalendarClock },
@@ -25,16 +36,16 @@ const studentNav = [
   { to: '/student/profile', label: 'Profile', icon: User },
 ];
 
-const coordinatorNav = [
-  { to: '/coordinator', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/coordinator/students', label: 'Students', icon: Users },
-  { to: '/coordinator/hospitals', label: 'Hospitals', icon: Hospital },
-  { to: '/coordinator/rotations', label: 'Rotations', icon: Repeat },
-  { to: '/coordinator/attendance', label: 'Attendance', icon: ClipboardList },
-  { to: '/coordinator/appeals', label: 'Appeals', icon: FileWarning },
-  { to: '/coordinator/announcements', label: 'Announcements', icon: Megaphone },
-  { to: '/coordinator/exceptions', label: 'Exceptions', icon: CalendarX2 },
-  { to: '/coordinator/notifications', label: 'Notifications', icon: Bell },
+const coordinatorNav: NavItem[] = [
+  { to: '/coordinator', label: 'Dashboard', icon: LayoutDashboard, end: true, section: 'Program' },
+  { to: '/coordinator/students', label: 'Students', icon: Users, section: 'Program' },
+  { to: '/coordinator/hospitals', label: 'Hospitals', icon: Hospital, section: 'Program' },
+  { to: '/coordinator/rotations', label: 'Rotations', icon: Repeat, section: 'Program' },
+  { to: '/coordinator/attendance', label: 'Attendance', icon: ClipboardList, section: 'Attendance' },
+  { to: '/coordinator/appeals', label: 'Appeals', icon: FileWarning, section: 'Attendance' },
+  { to: '/coordinator/exceptions', label: 'Exceptions', icon: CalendarX2, section: 'Updates' },
+  { to: '/coordinator/announcements', label: 'Announcements', icon: Megaphone, section: 'Updates' },
+  { to: '/coordinator/notifications', label: 'Notifications', icon: Bell, section: 'Updates' },
 ];
 
 function matchesActive(pathname: string, item: { to: string; end?: boolean }) {
@@ -298,10 +309,21 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="relative flex-1 space-y-1 overflow-y-auto px-3">
-          {nav.map((item) => {
+          {nav.map((item, index) => {
             const isActive = matchesActive(location.pathname, item);
+            const previousSection = index > 0 ? nav[index - 1].section : undefined;
+            const showSectionHeader = !!item.section && item.section !== previousSection;
             return (
-              <div key={item.to} className="group relative">
+              <div key={item.to}>
+                {showSectionHeader && !collapsed && (
+                  <p className={clsx('mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-ink-300', index === 0 ? 'mt-1' : 'mt-4')}>
+                    {item.section}
+                  </p>
+                )}
+                {showSectionHeader && collapsed && index !== 0 && (
+                  <div className="my-2 border-t border-surface-line" />
+                )}
+                <div className="group relative">
                 <NavLink
                   to={item.to}
                   end={item.end}
@@ -330,6 +352,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                     {item.label}
                   </div>
                 )}
+                </div>
               </div>
             );
           })}

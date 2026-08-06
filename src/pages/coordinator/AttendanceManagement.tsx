@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
+import { exportToCsv } from '../../utils/exportCsv';
 import BatchAttendanceAccordion from '../../components/coordinator/BatchAttendanceAccordion';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { AttendanceRecord, Hospital, Student, Profile, AttendanceStatus } from '../../types/database';
@@ -95,11 +96,34 @@ export default function CoordinatorAttendance() {
   const visibleRows = batchFilter === 'all' ? rows : rows.filter((r) => r.student?.batch === batchFilter);
   const groupedByBatch = groupByBatch(visibleRows, (r) => r.student?.batch);
 
+  function handleExport() {
+    exportToCsv(
+      `cpvs-attendance${batchFilter !== 'all' ? `-batch-${batchFilter}` : ''}`,
+      [
+        { header: 'Date', value: (r: Row) => r.date },
+        { header: 'Day', value: (r: Row) => new Date(r.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long' }) },
+        { header: 'Student', value: (r: Row) => r.student?.profile?.full_name ?? '' },
+        { header: 'Batch', value: (r: Row) => r.student?.batch ?? '' },
+        { header: 'Hospital', value: (r: Row) => r.hospital?.name ?? '' },
+        { header: 'Check-in', value: (r: Row) => (r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '') },
+        { header: 'Check-out', value: (r: Row) => (r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : '') },
+        { header: 'Status', value: (r: Row) => r.status },
+        { header: 'Corrected', value: (r: Row) => (r.corrected_by ? 'Yes' : 'No') },
+      ],
+      visibleRows
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-ink-900">Attendance management</h1>
-        <p className="mt-1 text-sm text-ink-500">View and correct attendance records across your students.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-ink-900">Attendance management</h1>
+          <p className="mt-1 text-sm text-ink-500">View and correct attendance records across your students.</p>
+        </div>
+        <button onClick={handleExport} disabled={visibleRows.length === 0} className="btn-secondary">
+          <Download size={16} /> Export CSV
+        </button>
       </div>
 
       {loadError && (

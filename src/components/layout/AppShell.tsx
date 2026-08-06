@@ -2,7 +2,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, MapPin, CalendarClock, FileWarning, Bell, User,
+  LayoutDashboard, MapPin, CalendarClock, FileWarning, Bell, BellPlus, User,
   Users, Hospital, Repeat, ClipboardList, Megaphone, CalendarX2, LogOut,
   Sun, Moon, PanelLeftClose, PanelLeftOpen, Search, ChevronDown,
 } from 'lucide-react';
@@ -10,6 +10,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { supabase } from '../../lib/supabase';
 import ErrorBoundary from '../ErrorBoundary';
+import PushNotificationManager from './PushNotificationManager';
+import { getNotificationPermission, requestNotificationPermission, setAppBadgeCount } from '../../utils/pushNotifications';
+import { useToast } from '../../context/ToastContext';
 import clsx from 'clsx';
 import type { NotificationRow } from '../../types/database';
 
@@ -31,6 +34,7 @@ const coordinatorNav = [
   { to: '/coordinator/appeals', label: 'Appeals', icon: FileWarning },
   { to: '/coordinator/announcements', label: 'Announcements', icon: Megaphone },
   { to: '/coordinator/exceptions', label: 'Exceptions', icon: CalendarX2 },
+  { to: '/coordinator/notifications', label: 'Notifications', icon: Bell },
 ];
 
 function matchesActive(pathname: string, item: { to: string; end?: boolean }) {
@@ -57,6 +61,33 @@ function ThemeToggle() {
 }
 
 /** Bell with unread-count badge and a small dropdown of recent notifications — shared by both roles even though only students have a dedicated /notifications page. */
+function EnableNotificationsButton() {
+  const { showSuccess, showError } = useToast();
+  const [permission, setPermission] = useState(getNotificationPermission());
+
+  if (permission !== 'default') return null; // already granted, denied, or unsupported — nothing to prompt
+
+  async function handleClick() {
+    const result = await requestNotificationPermission();
+    setPermission(result);
+    if (result === 'granted') {
+      showSuccess("Notifications enabled — you'll get alerts even when this tab isn't focused.");
+    } else if (result === 'denied') {
+      showError('Notifications blocked. You can re-enable them in your browser\'s site settings.');
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      title="Enable browser notifications"
+      className="flex h-9 w-9 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-surface-muted hover:text-ink-900"
+    >
+      <BellPlus size={17} />
+    </button>
+  );
+}
+
 function NotificationsMenu() {
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
@@ -67,42 +98,87 @@ function NotificationsMenu() {
   useEffect(() => {
     if (!profile) return;
     (async () => {
-      const { data } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false })
-        .limit(8);
+      const [{ data }, { count }] = await Promise.all([
+        supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('created_at', { ascending: false })
+          .limit(8),
+        supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', profile.id)
+          .eq('is_read', false),
+      ]);
       setItems(data ?? []);
-      setUnread((data ?? []).filter((n) => !n.is_read).length);
+      const unreadCount = count ?? 0;
+      setUnread(unreadCount);
+      setAppBadgeCount(unreadCount);
     })();
-  }, [profile]);
-
-  useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, []);
+  }, [profile?.id]);
 
   async function handleOpen() {
     setOpen((o) => !o);
     if (!open && unread > 0 && profile) {
-      const ids = items.filter((n) => !n.is_read).map((n) => n.id);
-      if (ids.length > 0) {
-        await supabase.from('notifications').update({ is_read: true }).in('id', ids);
-        setUnread(0);
-      }
+      // Mark ALL of this user's unread notifications as read (not just the
+      // 8 shown in the preview) so the badge count — which reflects the
+      // true total — actually reaches zero instead of leaving a stale
+      // remainder for anything beyond the preview list.
+      await supabase.from('notifications').update({ is_read: true }).eq('user_id', profile.id).eq('is_read', false);
+      setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnread(0);
+      setAppBadgeCount(0);
     }
   }
+
+  // Live updates: a new notification for this user shows up in the preview
+  // list and bumps the badge immediately, without needing to reopen the
+  // dropdown or reload the page — this is the same realtime channel
+  // PushNotificationManager uses for OS-level notifications; this one keeps
+  // the in-app bell itself live.
+  useEffect(() => {
+    if (!profile) return;
+
+    // Defensive guard: if a channel with this exact topic already exists
+    // (e.g. from React StrictMode's intentional double-invoke of effects in
+    // development, or a fast-firing prior effect run whose async
+    // removeChannel() hasn't resolved yet), remove it first rather than
+    // trying to subscribe a second time on top of it — that's what was
+    // throwing "cannot add postgres_changes callbacks ... after subscribe()".
+    const topic = `notifications-badge-${profile.id}`;
+    const existing = supabase.getChannels().find((c) => c.topic === `realtime:${topic}`);
+    if (existing) supabase.removeChannel(existing);
+
+    const channel = supabase
+      .channel(topic)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
+        (payload) => {
+          const n = payload.new as NotificationRow;
+          setItems((prev) => [n, ...prev].slice(0, 8));
+          setUnread((prev) => {
+            const next = prev + 1;
+            setAppBadgeCount(next);
+            return next;
+          });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id]);
 
   return (
     <div className="relative" ref={ref}>
       <button onClick={handleOpen} className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-surface-muted hover:text-ink-900">
         <Bell size={18} />
         {unread > 0 && (
-          <span className="absolute right-1.5 top-1.5 flex h-2 w-2 rounded-full bg-status-expired" />
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-status-expired px-1 text-[10px] font-semibold leading-none text-white">
+            {unread > 9 ? '9+' : unread}
+          </span>
         )}
       </button>
       <AnimatePresence>
@@ -124,6 +200,13 @@ function NotificationsMenu() {
                 </div>
               ))}
             </div>
+            <NavLink
+              to={profile?.role === 'coordinator' ? '/coordinator/notifications' : '/student/notifications'}
+              onClick={() => setOpen(false)}
+              className="block border-t border-surface-line px-4 py-2.5 text-center text-xs font-medium text-clinical-600 hover:bg-surface-muted hover:text-clinical-700"
+            >
+              View all notifications
+            </NavLink>
           </motion.div>
         )}
       </AnimatePresence>
@@ -198,6 +281,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
+      <PushNotificationManager />
+
       {/* Desktop sidebar — floating, collapsible, animated active indicator */}
       <motion.aside
         animate={{ width: collapsed ? 84 : 256 }}
@@ -295,6 +380,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <EnableNotificationsButton />
             <NotificationsMenu />
             <ThemeToggle />
             <ProfileMenu onSignOut={handleSignOut} />
@@ -305,6 +391,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between border-b border-surface-line bg-surface/85 px-4 py-3 backdrop-blur-md md:hidden">
           <img src="/wordmark.png" alt="CPVS" className="h-9 w-auto dark:brightness-0 dark:invert" />
           <div className="flex items-center gap-1">
+            <EnableNotificationsButton />
             <NotificationsMenu />
             <ThemeToggle />
             <button onClick={handleSignOut} className="p-2 text-ink-500">

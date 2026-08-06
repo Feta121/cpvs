@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { UserPlus, Loader2, Copy, Check, X, Trash2 } from 'lucide-react';
+import { UserPlus, Loader2, Copy, Check, X, Trash2, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
 import { useTheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
+import { exportToCsv } from '../../utils/exportCsv';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import StudentProfileModal from '../../components/coordinator/StudentProfileModal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -73,6 +74,26 @@ export default function CoordinatorStudents() {
 
   const visibleStudents = batchFilter === 'all' ? students : students.filter((s) => s.batch === batchFilter);
   const groupedByBatch = useMemo(() => groupByBatch(visibleStudents, (s) => s.batch), [visibleStudents]);
+
+  function handleExport() {
+    exportToCsv(
+      `cpvs-students${batchFilter !== 'all' ? `-batch-${batchFilter}` : ''}`,
+      [
+        { header: 'Full Name', value: (s: StudentRow) => s.profile?.full_name ?? '' },
+        { header: 'Student ID', value: (s: StudentRow) => s.university_id ?? '' },
+        { header: 'CPVS ID', value: (s: StudentRow) => s.student_id },
+        { header: 'Program', value: (s: StudentRow) => s.program ?? s.department },
+        { header: 'Institution', value: (s: StudentRow) => s.institution },
+        { header: 'Year', value: (s: StudentRow) => s.year },
+        { header: 'Batch', value: (s: StudentRow) => s.batch },
+        { header: 'Status', value: (s: StudentRow) => s.status },
+        { header: 'Late Attendance Concern', value: (s: StudentRow) => (s.late_attendance_concern ? 'Yes' : 'No') },
+        { header: 'Email', value: (s: StudentRow) => s.profile?.email ?? '' },
+        { header: 'Phone', value: (s: StudentRow) => s.profile?.phone ?? '' },
+      ],
+      visibleStudents
+    );
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -151,6 +172,9 @@ export default function CoordinatorStudents() {
             <option value="all">All batches</option>
             {batches.map((b) => <option key={b} value={b}>Batch {b}</option>)}
           </select>
+          <button onClick={handleExport} disabled={visibleStudents.length === 0} className="btn-secondary">
+            <Download size={16} /> Export CSV
+          </button>
           <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
             <UserPlus size={16} /> Add student
           </button>

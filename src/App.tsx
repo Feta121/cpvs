@@ -1,27 +1,37 @@
+import { lazy, Suspense, ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
 import FullScreenLoader from './components/ui/FullScreenLoader';
 
+// Login and ChangePassword are kept as regular (non-lazy) imports: they're
+// the very first thing an unauthenticated visitor sees, don't need AppShell
+// or any of its heavier dependencies (framer-motion), and lazy-loading them
+// would just add an extra loading flash with no bundle-size benefit.
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
 
-import StudentDashboard from './pages/student/StudentDashboard';
-import StudentAttendance from './pages/student/Attendance';
-import AttendanceHistory from './pages/student/AttendanceHistory';
-import StudentAppeals from './pages/student/Appeals';
-import StudentNotifications from './pages/student/Notifications';
-import StudentProfile from './pages/student/Profile';
+// Every authenticated page is lazy — this is what actually shrinks the
+// initial bundle. Pages that pull in Leaflet (Hospitals, CoordinatorDashboard)
+// or recharts (both dashboards) previously forced every user, including
+// students who never see Hospitals, to download that code upfront.
+const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'));
+const StudentAttendance = lazy(() => import('./pages/student/Attendance'));
+const AttendanceHistory = lazy(() => import('./pages/student/AttendanceHistory'));
+const StudentAppeals = lazy(() => import('./pages/student/Appeals'));
+const StudentNotifications = lazy(() => import('./pages/student/Notifications'));
+const StudentProfile = lazy(() => import('./pages/student/Profile'));
 
-import CoordinatorDashboard from './pages/coordinator/CoordinatorDashboard';
-import CoordinatorStudents from './pages/coordinator/Students';
-import CoordinatorHospitals from './pages/coordinator/Hospitals';
-import CoordinatorRotations from './pages/coordinator/Rotations';
-import CoordinatorAttendance from './pages/coordinator/AttendanceManagement';
-import CoordinatorAppeals from './pages/coordinator/Appeals';
-import CoordinatorAnnouncements from './pages/coordinator/Announcements';
-import CoordinatorExceptions from './pages/coordinator/Exceptions';
+const CoordinatorDashboard = lazy(() => import('./pages/coordinator/CoordinatorDashboard'));
+const CoordinatorStudents = lazy(() => import('./pages/coordinator/Students'));
+const CoordinatorHospitals = lazy(() => import('./pages/coordinator/Hospitals'));
+const CoordinatorRotations = lazy(() => import('./pages/coordinator/Rotations'));
+const CoordinatorAttendance = lazy(() => import('./pages/coordinator/AttendanceManagement'));
+const CoordinatorAppeals = lazy(() => import('./pages/coordinator/Appeals'));
+const CoordinatorAnnouncements = lazy(() => import('./pages/coordinator/Announcements'));
+const CoordinatorExceptions = lazy(() => import('./pages/coordinator/Exceptions'));
+const CoordinatorNotifications = lazy(() => import('./pages/coordinator/Notifications'));
 
 function RoleHome() {
   const { loading, profile, authError, refreshProfile } = useAuth();
@@ -60,6 +70,13 @@ function RoleHome() {
   }
 }
 
+/** Wraps a lazy page in its own Suspense boundary (inside AppShell, so the
+ * sidebar/topbar stay visible immediately and only the page content area
+ * shows the loader while its chunk downloads). */
+function Lazy({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<FullScreenLoader label="Loading…" />}>{children}</Suspense>;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -72,7 +89,7 @@ export default function App() {
         path="/student"
         element={
           <ProtectedRoute allow={['student']}>
-            <AppShell><StudentDashboard /></AppShell>
+            <AppShell><Lazy><StudentDashboard /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -80,7 +97,7 @@ export default function App() {
         path="/student/attendance"
         element={
           <ProtectedRoute allow={['student']}>
-            <AppShell><StudentAttendance /></AppShell>
+            <AppShell><Lazy><StudentAttendance /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -88,7 +105,7 @@ export default function App() {
         path="/student/history"
         element={
           <ProtectedRoute allow={['student']}>
-            <AppShell><AttendanceHistory /></AppShell>
+            <AppShell><Lazy><AttendanceHistory /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -96,7 +113,7 @@ export default function App() {
         path="/student/appeals"
         element={
           <ProtectedRoute allow={['student']}>
-            <AppShell><StudentAppeals /></AppShell>
+            <AppShell><Lazy><StudentAppeals /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -104,7 +121,7 @@ export default function App() {
         path="/student/notifications"
         element={
           <ProtectedRoute allow={['student']}>
-            <AppShell><StudentNotifications /></AppShell>
+            <AppShell><Lazy><StudentNotifications /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -112,7 +129,7 @@ export default function App() {
         path="/student/profile"
         element={
           <ProtectedRoute allow={['student']}>
-            <AppShell><StudentProfile /></AppShell>
+            <AppShell><Lazy><StudentProfile /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -122,7 +139,7 @@ export default function App() {
         path="/coordinator"
         element={
           <ProtectedRoute allow={['coordinator']}>
-            <AppShell><CoordinatorDashboard /></AppShell>
+            <AppShell><Lazy><CoordinatorDashboard /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -130,7 +147,7 @@ export default function App() {
         path="/coordinator/students"
         element={
           <ProtectedRoute allow={['coordinator']}>
-            <AppShell><CoordinatorStudents /></AppShell>
+            <AppShell><Lazy><CoordinatorStudents /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -138,7 +155,7 @@ export default function App() {
         path="/coordinator/hospitals"
         element={
           <ProtectedRoute allow={['coordinator']}>
-            <AppShell><CoordinatorHospitals /></AppShell>
+            <AppShell><Lazy><CoordinatorHospitals /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -146,7 +163,7 @@ export default function App() {
         path="/coordinator/rotations"
         element={
           <ProtectedRoute allow={['coordinator']}>
-            <AppShell><CoordinatorRotations /></AppShell>
+            <AppShell><Lazy><CoordinatorRotations /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -154,7 +171,7 @@ export default function App() {
         path="/coordinator/attendance"
         element={
           <ProtectedRoute allow={['coordinator']}>
-            <AppShell><CoordinatorAttendance /></AppShell>
+            <AppShell><Lazy><CoordinatorAttendance /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -162,7 +179,7 @@ export default function App() {
         path="/coordinator/appeals"
         element={
           <ProtectedRoute allow={['coordinator']}>
-            <AppShell><CoordinatorAppeals /></AppShell>
+            <AppShell><Lazy><CoordinatorAppeals /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -170,7 +187,7 @@ export default function App() {
         path="/coordinator/announcements"
         element={
           <ProtectedRoute allow={['coordinator']}>
-            <AppShell><CoordinatorAnnouncements /></AppShell>
+            <AppShell><Lazy><CoordinatorAnnouncements /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
@@ -178,7 +195,15 @@ export default function App() {
         path="/coordinator/exceptions"
         element={
           <ProtectedRoute allow={['coordinator']}>
-            <AppShell><CoordinatorExceptions /></AppShell>
+            <AppShell><Lazy><CoordinatorExceptions /></Lazy></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coordinator/notifications"
+        element={
+          <ProtectedRoute allow={['coordinator']}>
+            <AppShell><Lazy><CoordinatorNotifications /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />

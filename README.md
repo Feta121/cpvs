@@ -136,7 +136,11 @@ supabase functions deploy mark-absences
 
 Run both in the SQL Editor.
 
-## 12. Install and run locally
+## 12. Apply migration 0010 (enables real-time push notifications)
+
+`supabase/migrations/0010_realtime_notifications.sql` adds the `notifications` table to Supabase's Realtime publication — required for the new browser push notification system (see "Push notifications" below) to detect new rows the instant they're inserted. Run it in the SQL Editor.
+
+## 13. Install and run locally
 
 ```bash
 npm install
@@ -145,11 +149,21 @@ npm run dev
 
 The app runs at `http://localhost:5173`.
 
-## 13. Deploy
+## 14. Deploy
 
 Build with `npm run build`; the static output in `dist/` can be deployed to Vercel, Netlify, Cloudflare Pages, or GitHub Pages. Remember to set the same two `VITE_SUPABASE_*` environment variables in your hosting provider.
 
 ---
+
+## Push notifications — what this does and doesn't cover
+
+Both roles now get real OS/browser-level notifications (not just the in-app bell) when a new notification arrives while CPVS is open in another tab or minimized — matching how Gmail/WhatsApp Web/Discord behave. Clicking one opens/focuses the app and jumps straight to the relevant page (attendance, appeals, etc., based on the notification's type — see `src/utils/notificationRouting.ts`).
+
+**What this is**: `src/components/layout/PushNotificationManager.tsx` subscribes to Supabase Realtime for the current user's `notifications` table, and calls the browser's Notification API (via `public/sw.js`) whenever a new row arrives and the tab isn't the focused one (`document.visibilityState !== 'visible'`). This requires the site to be open in some tab — even backgrounded or minimized, which covers the literal request.
+
+**What this is NOT**: true Web Push (a notification arriving with *every* browser tab fully closed) needs a VAPID key pair and a server-side component that calls the Push API on the user's behalf — a meaningfully larger backend addition (subscription storage, a push-sending Edge Function triggered by a DB webhook, key management) that wasn't in scope here. If you want that next, it layers on top of what's here rather than replacing it — the same `notifications` table and `notificationTypeToPath` routing would be reused.
+
+The bell in the top bar now shows a real unread count (not just a dot), and updates live via the same Realtime subscription. On platforms that support the Badging API (mainly installed/PWA contexts), the same count also sets the app icon badge.
 
 ## How key flows work
 

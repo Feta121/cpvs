@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Bell, Megaphone, CalendarClock, FileWarning, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { groupByDayLabel } from '../../utils/groupByDay';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { NotificationRow } from '../../types/database';
 
@@ -38,6 +39,8 @@ export default function CoordinatorNotifications() {
 
   if (loading) return <FullScreenLoader label="Loading notifications…" />;
 
+  const grouped = groupByDayLabel(items, (n) => n.created_at);
+
   return (
     <div className="space-y-6">
       <div>
@@ -45,29 +48,35 @@ export default function CoordinatorNotifications() {
         <p className="mt-1 text-sm text-ink-500">Flagged students, appeal submissions, and system alerts.</p>
       </div>
 
-      <div className="surface-card divide-y divide-surface-line">
-        {items.length === 0 && (
-          <div className="p-8 text-center text-sm text-ink-500">
-            <Bell className="mx-auto mb-2 text-ink-300" size={24} />
-            You're all caught up.
+      {items.length === 0 && (
+        <div className="surface-card p-8 text-center text-sm text-ink-500">
+          <Bell className="mx-auto mb-2 text-ink-300" size={24} />
+          You're all caught up.
+        </div>
+      )}
+
+      {grouped.map(([dayLabel, dayItems]) => (
+        <div key={dayLabel} className="space-y-2">
+          <p className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-300">{dayLabel}</p>
+          <div className="surface-card divide-y divide-surface-line">
+            {dayItems.map((n) => {
+              const Icon = iconMap[n.type];
+              return (
+                <div key={n.id} className={`flex gap-3 p-4 ${!n.is_read ? 'bg-clinical-50/40' : ''}`}>
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-clinical-50 text-clinical-600">
+                    <Icon size={15} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-ink-900">{n.title}</p>
+                    <p className="mt-0.5 text-sm text-ink-500">{n.message}</p>
+                    <p className="mt-1 text-xs text-ink-300">{new Date(n.created_at).toLocaleTimeString()}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        )}
-        {items.map((n) => {
-          const Icon = iconMap[n.type];
-          return (
-            <div key={n.id} className={`flex gap-3 p-4 ${!n.is_read ? 'bg-clinical-50/40' : ''}`}>
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-clinical-50 text-clinical-600">
-                <Icon size={15} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-ink-900">{n.title}</p>
-                <p className="mt-0.5 text-sm text-ink-500">{n.message}</p>
-                <p className="mt-1 text-xs text-ink-300">{new Date(n.created_at).toLocaleString()}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        </div>
+      ))}
     </div>
   );
 }

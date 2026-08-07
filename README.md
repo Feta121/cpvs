@@ -140,7 +140,16 @@ Run both in the SQL Editor.
 
 `supabase/migrations/0010_realtime_notifications.sql` adds the `notifications` table to Supabase's Realtime publication — required for the new browser push notification system (see "Push notifications" below) to detect new rows the instant they're inserted. Run it in the SQL Editor.
 
-## 13. Install and run locally
+## 13. Apply migration 0011 + redeploy `mark-absences` once more
+
+`supabase/migrations/0011_named_coordinator_notifications.sql` updates the "Late Attendance Concern" trigger to name the actual student (name, batch, hospital) instead of saying "a student in your rotation." Run it in the SQL Editor.
+
+The `mark-absences` function's absence notification got the same treatment in code — redeploy it once more:
+```bash
+supabase functions deploy mark-absences
+```
+
+## 14. Install and run locally
 
 ```bash
 npm install
@@ -149,7 +158,7 @@ npm run dev
 
 The app runs at `http://localhost:5173`.
 
-## 14. Deploy
+## 15. Deploy
 
 Build with `npm run build`; the static output in `dist/` can be deployed to Vercel, Netlify, Cloudflare Pages, or GitHub Pages. Remember to set the same two `VITE_SUPABASE_*` environment variables in your hosting provider.
 

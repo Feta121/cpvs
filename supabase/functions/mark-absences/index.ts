@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
     //    matching below).
     const { data: rotations, error: rotationsError } = await admin
       .from('rotations')
-      .select('id, student_id, hospital_id, coordinator_id, start_date, end_date, hospital:hospitals(session_expires_at), student:students(batch)')
+      .select('id, student_id, hospital_id, coordinator_id, start_date, end_date, hospital:hospitals(session_expires_at, name), student:students(batch)')
       .eq('status', 'active')
       .lte('start_date', targetDate)
       .gte('end_date', targetDate);
@@ -135,6 +135,15 @@ Deno.serve(async (req) => {
       }).eq('id', true);
       return json({ date: targetDate, checked: 0, marked_absent: 0, skipped: {} });
     }
+
+    // Student names live in `profiles`, not `students` — fetched as a flat
+    // query (not a nested embed) so the coordinator-facing notification
+    // below can name the student instead of saying "a student".
+    const { data: profileRows } = await admin
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', rotations.map((r) => r.student_id));
+    const nameByStudentId = new Map((profileRows ?? []).map((p) => [p.id, p.full_name]));
 
     // 2. Exceptions and special practice days for this date (both scopable
     //    to hospital/batch/student — see matchesScope above).
@@ -217,7 +226,7 @@ Deno.serve(async (req) => {
       notifications.push({
         user_id: rotation.coordinator_id,
         title: 'Student marked absent',
-        message: `A student in your rotation was marked absent for ${targetDate}.`,
+        message: `${nameByStudentId.get(rotation.student_id) ?? 'A student'} (Batch ${batch || 'unknown'}) at ${rotation.hospital?.name ?? 'their hospital'} was marked absent for ${targetDate}.`,
         type: 'attendance_warning',
       });
     }

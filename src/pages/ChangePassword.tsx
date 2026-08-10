@@ -59,7 +59,7 @@ navigate("/", { replace: true });
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4">
       <div className="w-full max-w-md animate-fadeUp">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-vital-600 text-white shadow-glass">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-vital-600 text-onAccent shadow-glass">
             <KeyRound size={22} />
           </div>
           <h1 className="font-display text-xl font-semibold text-ink-900">Set a new password</h1>

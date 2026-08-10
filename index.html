@@ -17,14 +17,15 @@
   <body>
     <script>
       // Pre-hydration theme application to avoid a flash of the wrong theme.
-      // Matches ThemeProvider's own logic exactly: only 'dark' is ever
-      // applied from storage — no system-preference check, per spec
-      // ("only dark and light – no system theme"). Anything else (including
-      // a leftover 'system' value from before this spec) resolves to light.
+      // Matches ThemeProvider's own logic exactly: 'dark' -> .dark,
+      // 'aether' -> .theme-aether, anything else (including light, or a
+      // leftover 'system' value from before that option was removed)
+      // resolves to plain light with no class.
       (function () {
         try {
           var stored = localStorage.getItem('cpvs-theme-preference');
           if (stored === 'dark') document.documentElement.classList.add('dark');
+          else if (stored === 'aether') document.documentElement.classList.add('theme-aether');
         } catch (e) {}
       })();
     </script>

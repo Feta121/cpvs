@@ -1,30 +1,45 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
-export type ThemePreference = 'light' | 'dark';
+export type ThemePreference = 'light' | 'dark' | 'aether';
 
 interface ThemeContextValue {
   preference: ThemePreference;
   setPreference: (pref: ThemePreference) => void;
+  /** Cycles light -> dark -> aether -> light. Kept for any existing caller
+   * that just wants "the next theme" without picking one explicitly. */
   toggle: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 const STORAGE_KEY = 'cpvs-theme-preference';
+const THEME_CLASSES: Record<ThemePreference, string | null> = {
+  light: null, // light has no class — it's the :root default
+  dark: 'dark',
+  aether: 'theme-aether',
+};
+const CYCLE_ORDER: ThemePreference[] = ['light', 'dark', 'aether'];
 
 function readStoredPreference(): ThemePreference {
   if (typeof window === 'undefined') return 'light';
   const stored = window.localStorage.getItem(STORAGE_KEY);
-  // Backward compatible: a previously-stored 'system' value (from before this
-  // spec required removing the system option) simply resolves to 'light'.
-  return stored === 'dark' ? 'dark' : 'light';
+  if (stored === 'dark' || stored === 'aether') return stored;
+  // Backward compatible: anything else (including a stale 'system' value
+  // from before that option was removed) resolves to 'light'.
+  return 'light';
 }
 
 function useThemeState(): ThemeContextValue {
   const [preference, setPreferenceState] = useState<ThemePreference>(readStoredPreference);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', preference === 'dark');
+    const root = document.documentElement;
+    // Remove every theme class before applying the current one, rather than
+    // a simple boolean toggle — now that there are three mutually exclusive
+    // options instead of two.
+    Object.values(THEME_CLASSES).forEach((cls) => cls && root.classList.remove(cls));
+    const activeClass = THEME_CLASSES[preference];
+    if (activeClass) root.classList.add(activeClass);
   }, [preference]);
 
   function setPreference(pref: ThemePreference) {
@@ -33,10 +48,15 @@ function useThemeState(): ThemeContextValue {
   }
 
   function toggle() {
-    setPreference(preference === 'dark' ? 'light' : 'dark');
+    const next = CYCLE_ORDER[(CYCLE_ORDER.indexOf(preference) + 1) % CYCLE_ORDER.length];
+    setPreference(next);
   }
 
   return { preference, setPreference, toggle };
+}
+
+export function toNativeColorScheme(preference: ThemePreference): 'light' | 'dark' {
+  return preference === 'light' ? 'light' : 'dark';
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

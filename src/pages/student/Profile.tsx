@@ -50,7 +50,7 @@ export default function StudentProfile() {
                 profile.full_name[0]?.toUpperCase()
               )}
             </div>
-            <label className="absolute -bottom-1 -right-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-clinical-600 text-white shadow-md">
+            <label className="absolute -bottom-1 -right-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-clinical-600 text-onPrimary shadow-md">
               {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
               <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
             </label>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../theme/ThemeProvider';
+import { useTheme, toNativeColorScheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import { exportToCsv } from '../../utils/exportCsv';
@@ -157,7 +157,7 @@ export default function CoordinatorAttendance() {
           key={batch}
           batch={batch}
           rows={batchRows}
-          colorScheme={preference}
+          colorScheme={toNativeColorScheme(preference)}
           onCorrectStatus={correctStatus}
           isSingleStudent={studentFilter !== 'all'}
         />

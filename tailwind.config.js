@@ -24,6 +24,13 @@ export default {
           500: 'rgb(var(--ink-500) / <alpha-value>)',
           300: 'rgb(var(--ink-300) / <alpha-value>)',
         },
+        // Text color to use ON TOP of the primary-600 action color (buttons,
+        // active states). White in the existing two themes (unchanged) — the
+        // new Aether theme's lime-green primary needs dark text instead for
+        // contrast, which is why this exists as its own variable rather than
+        // a hardcoded `text-white` in .btn-primary.
+        onPrimary: 'rgb(var(--on-primary) / <alpha-value>)',
+        onAccent: 'rgb(var(--on-accent) / <alpha-value>)',
         // "clinical" = the spec's Primary color (navy blue in light, sky
         // blue in dark). Name kept as-is to avoid touching every component.
         clinical: {

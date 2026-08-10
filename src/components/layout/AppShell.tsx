@@ -4,11 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, MapPin, CalendarClock, FileWarning, Bell, BellPlus, User,
   Users, Hospital, Repeat, ClipboardList, Megaphone, CalendarX2, LogOut,
-  Sun, Moon, PanelLeftClose, PanelLeftOpen, Search, ChevronDown,
+  Sun, Moon, Sparkles, PanelLeftClose, PanelLeftOpen, Search, ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../theme/ThemeProvider';
+import { useTheme, ThemePreference } from '../../theme/ThemeProvider';
 import { supabase } from '../../lib/supabase';
 import ErrorBoundary from '../ErrorBoundary';
 import PushNotificationManager from './PushNotificationManager';
@@ -52,22 +52,36 @@ function matchesActive(pathname: string, item: { to: string; end?: boolean }) {
   return item.end ? pathname === item.to : pathname.startsWith(item.to);
 }
 
+const THEME_OPTIONS: { value: ThemePreference; icon: LucideIcon; label: string }[] = [
+  { value: 'light', icon: Sun, label: 'Light' },
+  { value: 'dark', icon: Moon, label: 'Dark' },
+  { value: 'aether', icon: Sparkles, label: 'Aether' },
+];
+
 function ThemeToggle() {
-  const { preference, toggle } = useTheme();
+  const { preference, setPreference } = useTheme();
+  const activeIndex = THEME_OPTIONS.findIndex((o) => o.value === preference);
+
   return (
-    <button
-      onClick={toggle}
-      aria-label={`Switch to ${preference === 'dark' ? 'light' : 'dark'} theme`}
-      className="relative flex h-9 w-16 items-center rounded-full bg-surface-muted px-1 transition-colors"
-    >
+    <div className="relative flex h-9 w-24 items-center rounded-full bg-surface-muted p-1">
       <motion.div
-        className="flex h-7 w-7 items-center justify-center rounded-full bg-surface shadow-sm"
-        animate={{ x: preference === 'dark' ? 28 : 0 }}
+        className="absolute h-7 rounded-full bg-surface shadow-sm"
+        style={{ width: 'calc((100% - 8px) / 3)' }}
+        animate={{ left: `calc(4px + ${activeIndex} * (100% - 8px) / 3)` }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      >
-        {preference === 'dark' ? <Moon size={14} className="text-clinical-400" /> : <Sun size={14} className="text-clinical-600" />}
-      </motion.div>
-    </button>
+      />
+      {THEME_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => setPreference(opt.value)}
+          aria-label={`${opt.label} theme`}
+          title={`${opt.label} theme`}
+          className="relative z-10 flex h-7 flex-1 items-center justify-center"
+        >
+          <opt.icon size={14} className={preference === opt.value ? 'text-clinical-600' : 'text-ink-300'} />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -302,9 +316,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
       >
         <div className={clsx('flex items-center px-5 py-6', collapsed ? 'justify-center' : 'justify-start')}>
           {collapsed ? (
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-clinical-600 text-lg font-bold text-white">C</div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-clinical-600 text-lg font-bold text-onPrimary">C</div>
           ) : (
-            <img src="/wordmark.png" alt="CPVS" className="h-11 w-auto dark:brightness-0 dark:invert" />
+            <img src="/wordmark.png" alt="CPVS" className="wordmark h-11 w-auto dark:brightness-0 dark:invert" />
           )}
         </div>
 
@@ -412,7 +426,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         {/* Mobile top bar — also fixed for the same reason */}
         <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between border-b border-surface-line bg-surface/85 px-4 py-3 backdrop-blur-md md:hidden">
-          <img src="/wordmark.png" alt="CPVS" className="h-9 w-auto dark:brightness-0 dark:invert" />
+          <img src="/wordmark.png" alt="CPVS" className="wordmark h-9 w-auto dark:brightness-0 dark:invert" />
           <div className="flex items-center gap-1">
             <EnableNotificationsButton />
             <NotificationsMenu />

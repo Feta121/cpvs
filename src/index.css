@@ -46,6 +46,9 @@
   --warning: 245 158 11;  /* #F59E0B */
   --danger: 239 68 68;    /* #EF4444 */
   --verylate: 242 113 40; /* blend of warning/danger, kept visually distinct from plain "late" */
+
+  --on-primary: 255 255 255; /* text drawn on top of primary-600 (buttons, active nav) */
+  --on-accent: 255 255 255; /* text drawn on top of accent-500/600 (vital-colored badges/buttons) */
 }
 
 .dark {
@@ -81,6 +84,84 @@
   --warning: 245 158 11;
   --danger: 239 68 68;
   --verylate: 242 113 40;
+
+  --on-primary: 255 255 255;
+  --on-accent: 255 255 255;
+}
+
+/* ============================================================================
+   Theme 3 — "Aether": deep charcoal + lime-green accent, per the attached
+   reference design (DESIGN.md / screenshot). Selected via the same
+   ThemeProvider as light/dark (see src/theme/ThemeProvider.tsx) — applying
+   this class is the ENTIRE mechanism, since every color in the app already
+   reads from these same variable names. Nothing else needed to change.
+
+   Scope note: the medical status colors (present/late/very-late/absent) are
+   intentionally kept identical to the dark theme's values rather than
+   reinvented — those meanings should stay recognizable across every theme.
+   Chart line/marker colors (recharts, Leaflet map pins) are hardcoded RGB
+   literals in a few chart components rather than these variables, so those
+   specific elements still render in the medical blue/teal in this theme too;
+   restyling those was out of scope for "add a third theme."
+   ============================================================================ */
+.theme-aether {
+  --surface: 26 28 32;            /* #1A1C20 — cards */
+  --surface-muted: 17 19 23;      /* #111317 — page background */
+  --surface-line: 55 57 62;       /* #37393E — borders */
+  --surface-sidebar: 12 14 18;    /* #0C0E12 — sidebar, distinct from page bg */
+
+  --ink-900: 226 226 232; /* #E2E2E8 — primary text */
+  --ink-700: 180 180 188; /* muted light gray — secondary text */
+  --ink-500: 138 139 147; /* more muted — meta text */
+  --ink-300: 92 93 100;   /* faint — placeholders */
+
+  /* Primary = the reference's lime-green accent, used for buttons, active
+     nav, and focus states. 700 is a brighter (not darker) lime for hover —
+     darkening a bright accent on a near-black background just makes it
+     look disabled, so this follows the same "hover gets brighter" pattern
+     the existing dark theme already uses for its own primary/accent. */
+  --primary-50: 40 51 21;
+  --primary-100: 51 64 24;
+  --primary-200: 68 87 27;
+  --primary-300: 90 116 30;
+  --primary-400: 130 175 38;
+  --primary-500: 173 255 47;   /* #ADFF2F */
+  --primary-600: 173 255 47;
+  --primary-700: 197 255 105;  /* brighter lime, hover/glow */
+
+  /* Secondary/tertiary accent = medical teal-cyan, used sparingly (data
+     points, secondary highlights) — keeps two distinct accent colors like
+     the reference's primary/tertiary split, rather than lime everywhere. */
+  --accent-50: 20 55 58;
+  --accent-100: 22 68 72;
+  --accent-200: 26 92 97;
+  --accent-300: 30 120 127;
+  --accent-400: 34 168 176;
+  --accent-500: 0 220 230;   /* #00DCE6 */
+  --accent-600: 0 220 230;
+  --accent-700: 80 230 238;
+
+  /* Status colors intentionally unchanged from .dark — see note above. */
+  --success: 16 185 129;
+  --warning: 245 158 11;
+  --danger: 239 68 68;
+  --verylate: 242 113 40;
+
+  --on-primary: 13 15 17; /* near-black text on the bright lime buttons */
+  --on-accent: 13 15 17; /* near-black text on the bright teal-cyan accent */
+}
+
+.theme-aether body {
+  background-image:
+    radial-gradient(circle at 8% 0%, rgba(173,255,47,0.08), transparent 40%),
+    radial-gradient(circle at 100% 30%, rgba(0,220,230,0.07), transparent 45%);
+}
+
+/* The wordmark's dark-mode inversion uses Tailwind's `dark:` variant, which
+   only watches for the literal .dark class — it doesn't know about
+   .theme-aether, so that gets the same treatment manually here. */
+.theme-aether .wordmark {
+  filter: brightness(0) invert(1);
 }
 
 html, body, #root {
@@ -139,7 +220,7 @@ body {
   }
 
   .btn-primary {
-    @apply btn-base bg-clinical-600 text-white shadow-sm hover:bg-clinical-700 hover:-translate-y-0.5 hover:shadow-lift;
+    @apply btn-base bg-clinical-600 text-onPrimary shadow-sm hover:bg-clinical-700 hover:-translate-y-0.5 hover:shadow-lift;
   }
 
   .btn-secondary {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { UserPlus, Loader2, Copy, Check, X, Trash2, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
-import { useTheme } from '../../theme/ThemeProvider';
+import { useTheme, toNativeColorScheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import { exportToCsv } from '../../utils/exportCsv';
@@ -303,7 +303,7 @@ export default function CoordinatorStudents() {
                           value={s.status}
                           onChange={(e) => updateStatus(s.id, e.target.value as Student['status'])}
                           className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs text-ink-900"
-                          style={{ colorScheme: preference }}
+                          style={{ colorScheme: toNativeColorScheme(preference) }}
                         >
                           <option value="active">Active</option>
                           <option value="completed">Completed Practice</option>

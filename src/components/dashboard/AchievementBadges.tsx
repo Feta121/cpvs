@@ -30,7 +30,7 @@ export default function AchievementBadges({ achievements }: { achievements: Achi
               a.earned ? 'border-vital-200 bg-vital-50' : 'border-surface-line opacity-40 grayscale'
             }`}
           >
-            <div className={`flex h-10 w-10 items-center justify-center rounded-full ${a.earned ? 'bg-vital-500 text-white' : 'bg-surface-muted text-ink-300'}`}>
+            <div className={`flex h-10 w-10 items-center justify-center rounded-full ${a.earned ? 'bg-vital-500 text-onAccent' : 'bg-surface-muted text-ink-300'}`}>
               <Icon size={18} />
             </div>
             <div>

@@ -157,11 +157,48 @@
     radial-gradient(circle at 100% 30%, rgba(0,220,230,0.07), transparent 45%);
 }
 
-/* The wordmark's dark-mode inversion uses Tailwind's `dark:` variant, which
-   only watches for the literal .dark class — it doesn't know about
-   .theme-aether, so that gets the same treatment manually here. */
-.theme-aether .wordmark {
-  filter: brightness(0) invert(1);
+/* ============================================================================
+   Wordmark recoloring — CHANGED from a `brightness(0) invert(1)` filter
+   (which only ever produces flat white, since invert() can't target an
+   arbitrary hue) to a CSS mask: the same PNG's alpha channel is reused as a
+   stencil, then `background-color` fills the letter shapes with whatever
+   color the current theme calls for. This is what lets the logo actually
+   pick up the Aether theme's lime green (rgb(var(--primary-600)) = #ADFF2F)
+   instead of being forced to white like it was under the old filter, while
+   still rendering the real multi-color logo (navy/teal) in the light theme,
+   where no mask is applied at all.
+   See <Wordmark> in src/components/ui/Wordmark.tsx for the two-layer markup
+   (plain <img> + masked <span>) this pairs with.
+   ============================================================================ */
+.wordmark-mask {
+  display: none;
+  -webkit-mask-image: url(/wordmark.png);
+  mask-image: url(/wordmark.png);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  background-color: rgb(var(--wordmark-fill, 255 255 255));
+}
+
+.dark .wordmark-img,
+.theme-aether .wordmark-img {
+  display: none;
+}
+.dark .wordmark-mask,
+.theme-aether .wordmark-mask {
+  display: inline-block;
+}
+/* Dark theme keeps the previous solid-white look. */
+.dark .wordmark-mask {
+  --wordmark-fill: 255 255 255;
+}
+/* Aether theme: lime green, driven by the same primary-600 variable every
+   other themed element already uses — not a one-off hardcoded hex. */
+.theme-aether .wordmark-mask {
+  --wordmark-fill: var(--primary-600);
 }
 
 html, body, #root {
@@ -223,9 +260,19 @@ body {
     @apply btn-base bg-clinical-600 text-onPrimary shadow-sm hover:bg-clinical-700 hover:-translate-y-0.5 hover:shadow-lift;
   }
 
+  /* CHANGED: text-ink-700 -> text-clinical-700 at rest (was previously only
+     themed on hover). ink-700 is a neutral gray CSS var that reads nearly
+     identically across all three themes, which is exactly why every
+     secondary button — Export CSV, Check for missed check-ins, Backfill,
+     Edit/Deactivate/Delete on Hospitals — looked like flat gray regardless
+     of theme. clinical-700 is the same primary-color variable every other
+     themed element (buttons, active nav, links) already reads from, so this
+     one class fix makes all of the above pick up each theme's real color
+     (navy in light, sky blue in dark, lime #ADFF2F in aether) without
+     touching each usage individually. */
   .btn-secondary {
-    @apply btn-base border border-surface-line bg-surface text-ink-700
-      hover:-translate-y-0.5 hover:border-clinical-300 hover:text-clinical-700 hover:shadow-card;
+    @apply btn-base border border-surface-line bg-surface text-clinical-700
+      hover:-translate-y-0.5 hover:border-clinical-300 hover:text-clinical-800 hover:shadow-card;
   }
 
   .btn-danger {

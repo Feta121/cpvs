@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme, ThemePreference } from '../../theme/ThemeProvider';
 import { supabase } from '../../lib/supabase';
 import ErrorBoundary from '../ErrorBoundary';
+import Wordmark from '../ui/Wordmark';
 import PushNotificationManager from './PushNotificationManager';
 import { getNotificationPermission, requestNotificationPermission, setAppBadgeCount } from '../../utils/pushNotifications';
 import { useToast } from '../../context/ToastContext';
@@ -318,7 +319,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           {collapsed ? (
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-clinical-600 text-lg font-bold text-onPrimary">C</div>
           ) : (
-            <img src="/wordmark.png" alt="CPVS" className="wordmark h-11 w-auto dark:brightness-0 dark:invert" />
+            <Wordmark className="h-11" />
           )}
         </div>
 
@@ -348,22 +349,69 @@ export default function AppShell({ children }: { children: ReactNode }) {
                     collapsed && 'justify-center px-0'
                   )}
                 >
+                  {/* CHANGED: collapsed active state now renders as a solid
+                      filled badge (bg-clinical-600, matching the reference
+                      Thor sidebar's circular active-icon treatment) instead
+                      of reusing the expanded state's pale inset-0 pill —
+                      which, once collapsed removes the label text, just
+                      left an oddly-proportioned square around a lone icon
+                      rather than reading as a deliberate "selected" badge. */}
                   {isActive && (
                     <motion.div
                       layoutId="active-nav-pill"
-                      className="absolute inset-0 rounded-xl bg-clinical-50 shadow-[0_0_0_1px_rgba(15,76,129,0.08)]"
+                      className={clsx(
+                        'absolute inset-0 rounded-xl',
+                        collapsed ? 'bg-clinical-600 shadow-lift' : 'bg-clinical-50 shadow-[0_0_0_1px_rgba(15,76,129,0.08)]'
+                      )}
                       transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                     />
                   )}
+                  {/* CHANGED: vertical centering moved from a transform
+                      (-translate-y-1/2) to a fixed negative margin (-mt-2.5,
+                      i.e. -10px = half of h-5's 20px). This element has
+                      layoutId, so Framer Motion animates it between nav
+                      items by writing its OWN transform directly via inline
+                      style — which silently overwrites any transform-based
+                      Tailwind class the moment that animation runs (inline
+                      style always wins over a class). That's exactly why it
+                      looked centered on first load (no animation has run
+                      yet, so the class's transform was still untouched) but
+                      dropped out of center after the first page navigation
+                      (once Framer Motion's own transform took over and the
+                      -50% offset was lost). Margin doesn't touch the
+                      transform property at all, so it can't be clobbered
+                      the same way. */}
                   {isActive && !collapsed && (
-                    <motion.div layoutId="active-nav-glow" className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-clinical-600" />
+                    <motion.div
+                      layoutId="active-nav-glow"
+                      className="absolute left-0 top-1/2 -mt-2.5 h-5 w-1 rounded-full bg-clinical-600"
+                      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                    />
                   )}
-                  <item.icon size={18} strokeWidth={2} className={clsx('relative z-10 shrink-0 transition-colors', isActive && 'text-clinical-600')} />
+                  <item.icon
+                    size={18}
+                    strokeWidth={2}
+                    className={clsx(
+                      'relative z-10 shrink-0 transition-colors',
+                      isActive && (collapsed ? 'text-onPrimary' : 'text-clinical-600')
+                    )}
+                  />
                   {!collapsed && <span className="relative z-10">{item.label}</span>}
                 </NavLink>
+                {/* CHANGED: added a CSS-triangle arrow pointing back at the
+                    icon (border trick — transparent top/bottom/left,
+                    colored right, so the shape tapers to a point on the
+                    left) so the tooltip visually connects to the item it
+                    describes, matching the reference design, instead of
+                    floating as an unconnected label. Also nudges in from
+                    ml-3 to ml-2 on hover for a small slide-in instead of
+                    appearing static. */}
                 {collapsed && (
-                  <div className="pointer-events-none absolute left-full top-1/2 z-30 ml-2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-ink-900 px-2.5 py-1.5 text-xs font-medium text-surface opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
-                    {item.label}
+                  <div className="pointer-events-none absolute left-full top-1/2 z-30 ml-3 -translate-y-1/2 opacity-0 shadow-lg transition-all duration-150 group-hover:ml-2 group-hover:opacity-100">
+                    <div className="relative whitespace-nowrap rounded-lg bg-ink-900 px-2.5 py-1.5 text-xs font-medium text-surface">
+                      <span className="absolute right-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-ink-900" />
+                      {item.label}
+                    </div>
                   </div>
                 )}
                 </div>
@@ -426,7 +474,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         {/* Mobile top bar — also fixed for the same reason */}
         <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between border-b border-surface-line bg-surface/85 px-4 py-3 backdrop-blur-md md:hidden">
-          <img src="/wordmark.png" alt="CPVS" className="wordmark h-9 w-auto dark:brightness-0 dark:invert" />
+          <Wordmark className="h-9" />
           <div className="flex items-center gap-1">
             <EnableNotificationsButton />
             <NotificationsMenu />

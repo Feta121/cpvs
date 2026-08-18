@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Tooltip as LeafletTooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useTheme } from '../../theme/ThemeProvider';
 
 export interface HospitalActivity {
   hospitalId: string;
@@ -12,6 +14,17 @@ export interface HospitalActivity {
 
 const ADDIS_CENTER: [number, number] = [9.0250, 38.7469];
 
+/** Reads a CSS custom property's resolved value (e.g. "0 220 230") off the
+ * document root and formats it as an rgb() string Leaflet can use directly.
+ * Needed because Leaflet passes marker colors straight into SVG attributes,
+ * which don't reliably resolve var() the way an actual CSS property does —
+ * so the theme's real color is read once per theme change instead. */
+function readThemeColor(variableName: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+  return value ? `rgb(${value})` : fallback;
+}
+
 /**
  * Shows each hospital as a marker sized/colored by how many students are
  * currently checked in (still on-site) vs already checked out today. Reuses
@@ -19,7 +32,16 @@ const ADDIS_CENTER: [number, number] = [9.0250, 38.7469];
  * mapping dependency introduced.
  */
 export default function HospitalActivityMap({ hospitals }: { hospitals: HospitalActivity[] }) {
+  const { preference } = useTheme();
   const withCoords = hospitals.filter((h) => h.latitude && h.longitude);
+
+  const [colors, setColors] = useState({ active: '#0fa080', inactive: '#94a1b8' });
+  useEffect(() => {
+    setColors({
+      active: readThemeColor('--accent-600', '#0fa080'),
+      inactive: readThemeColor('--ink-300', '#94a1b8'),
+    });
+  }, [preference]);
 
   return (
     <div className="isolate overflow-hidden rounded-xl border border-surface-line">
@@ -31,7 +53,7 @@ export default function HospitalActivityMap({ hospitals }: { hospitals: Hospital
         {withCoords.map((h) => {
           const total = h.activeNow + h.checkedOutToday;
           const radius = 8 + Math.min(20, total * 2);
-          const color = h.activeNow > 0 ? '#0fa080' : '#94a1b8';
+          const color = h.activeNow > 0 ? colors.active : colors.inactive;
           return (
             <CircleMarker
               key={h.hospitalId}

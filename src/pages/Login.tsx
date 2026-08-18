@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import Wordmark from '../components/ui/Wordmark';
 
 export default function Login() {
   const { signInWithUsername, refreshProfile } = useAuth();
@@ -30,7 +31,7 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4">
       <div className="w-full max-w-md animate-fadeUp">
         <div className="mb-8 flex flex-col items-center text-center">
-          <img src="/wordmark.png" alt="CPVS" className="wordmark mb-4 h-16 w-auto dark:brightness-0 dark:invert" />
+          <Wordmark className="mb-4 h-16" />
           <p className="mt-1 text-sm text-ink-500">Clinical Practice Verification System</p>
         </div>
 

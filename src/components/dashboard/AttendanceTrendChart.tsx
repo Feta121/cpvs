@@ -27,15 +27,30 @@ export default function AttendanceTrendChart({ data, height = 220 }: { data: Tre
         <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'rgb(var(--ink-500))' }} axisLine={{ stroke: 'rgb(var(--surface-line))' }} tickLine={false} />
         <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'rgb(var(--ink-500))' }} axisLine={false} tickLine={false} width={32} />
         <Tooltip
+          cursor={{ stroke: 'rgb(var(--primary-300))', strokeWidth: 1 }}
           contentStyle={{
             background: 'rgb(var(--surface))',
             border: '1px solid rgb(var(--surface-line))',
             borderRadius: 12,
             fontSize: 12,
           }}
+          labelStyle={{ color: 'rgb(var(--ink-900))' }}
+          itemStyle={{ color: 'rgb(var(--ink-700))' }}
           formatter={(value: number) => [`${value}%`, 'Attendance']}
         />
-        <Line type="monotone" dataKey="percentage" stroke="rgb(15 109 250)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+        {/* CHANGED: dot/activeDot now explicitly set fill+stroke to the same
+            themed variable as the line itself, rather than relying on
+            recharts' own default (which doesn't reliably inherit the line's
+            color across recharts versions). Without this, the line could
+            render themed while its own dots stayed an untheted default. */}
+        <Line
+          type="monotone"
+          dataKey="percentage"
+          stroke="rgb(var(--primary-600))"
+          strokeWidth={2.5}
+          dot={{ r: 3, fill: 'rgb(var(--primary-600))', stroke: 'rgb(var(--primary-600))' }}
+          activeDot={{ r: 5, fill: 'rgb(var(--primary-600))', stroke: 'rgb(var(--surface))', strokeWidth: 2 }}
+        />
       </LineChart>
     </ResponsiveContainer>
   );

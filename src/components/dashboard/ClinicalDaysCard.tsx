@@ -81,10 +81,10 @@ export default function ClinicalDaysCard() {
               <div
                 key={d.key}
                 className={`flex flex-col items-center gap-3 rounded-xl border p-3 transition-colors ${
-                  active ? 'border-vital-200 bg-vital-50' : 'border-surface-line'
+                  active ? 'border-clinical-200 bg-clinical-50' : 'border-surface-line'
                 }`}
               >
-                <span className={`text-xs font-semibold ${active ? 'text-vital-700' : 'text-ink-500'}`}>{d.label}</span>
+                <span className={`text-xs font-semibold ${active ? 'text-clinical-700' : 'text-ink-500'}`}>{d.label}</span>
                 <button
                   type="button"
                   role="switch"
@@ -93,7 +93,7 @@ export default function ClinicalDaysCard() {
                   onClick={() => toggle(d.key)}
                   disabled={savingKey === d.key}
                   className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-60 ${
-                    active ? 'bg-vital-500' : 'bg-ink-300/50'
+                    active ? 'bg-clinical-500' : 'bg-ink-300/50'
                   }`}
                 >
                   <span

@@ -25,7 +25,7 @@ export default function ProgressRing({
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
-  const strokeColor = tone === 'clinical' ? 'rgb(15 109 250)' : 'rgb(15 160 128)';
+  const strokeColor = tone === 'clinical' ? 'rgb(var(--primary-600))' : 'rgb(var(--accent-600))';
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>

@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
+import InstallPrompt from './components/ui/InstallPrompt';
 import FullScreenLoader from './components/ui/FullScreenLoader';
 
 // Login and ChangePassword are kept as regular (non-lazy) imports: they're
@@ -79,6 +80,8 @@ function Lazy({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
+    <>
+      <InstallPrompt />
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/change-password" element={<ChangePassword />} />
@@ -210,5 +213,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

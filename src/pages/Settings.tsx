@@ -57,17 +57,17 @@ function InstallOrUpdateRow() {
 
   if (isStandalone) {
     return (
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
             <CheckCircle2 size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-ink-900">Running as an installed app</p>
             <p className="text-sm text-ink-500">Force a refresh if you suspect you're on an older version.</p>
           </div>
         </div>
-        <button onClick={handleCheckForUpdates} disabled={checking} className="btn-secondary shrink-0 px-3 py-1.5 text-xs">
+        <button onClick={handleCheckForUpdates} disabled={checking} className="btn-secondary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto">
           <RefreshCw size={13} className={checking ? 'animate-spin' : ''} />
           Check for updates
         </button>
@@ -77,17 +77,17 @@ function InstallOrUpdateRow() {
 
   if (canInstall) {
     return (
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
             <Download size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-ink-900">Install CPVS</p>
             <p className="text-sm text-ink-500">Adds it to your home screen for quick, full-screen access.</p>
           </div>
         </div>
-        <button onClick={handleInstall} className="btn-primary shrink-0 px-3 py-1.5 text-xs">
+        <button onClick={handleInstall} className="btn-primary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto">
           Install
         </button>
       </div>
@@ -128,18 +128,18 @@ function NotificationRow() {
     permission === 'granted' ? 'Enabled' : permission === 'denied' ? 'Blocked in browser settings' : permission === 'unsupported' ? 'Not supported here' : 'Not enabled';
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
           {permission === 'granted' ? <Bell size={18} /> : <BellOff size={18} />}
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-medium text-ink-900">Browser notifications</p>
           <p className="text-sm text-ink-500">{statusLabel}</p>
         </div>
       </div>
       {permission === 'default' && (
-        <button onClick={handleClick} className="btn-secondary shrink-0 px-3 py-1.5 text-xs">
+        <button onClick={handleClick} className="btn-secondary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto">
           Enable
         </button>
       )}

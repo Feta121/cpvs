@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Users, CheckCircle2, Clock, XCircle, FileWarning, TrendingUp, Hospital as HospitalIcon, ShieldAlert, Activity, Repeat, LogOut, RefreshCw, Loader2 } from 'lucide-react';
+import { Users, UserCheck, CheckCircle2, Clock, XCircle, TrendingUp, Hospital as HospitalIcon, ShieldAlert, Activity, Layers, Repeat, RefreshCw, Loader2 } from 'lucide-react';
 import { startOfWeek, format, subWeeks, formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -25,7 +25,7 @@ export default function CoordinatorDashboard() {
   const [loading, setLoading] = useState(true);
   const [batch, setBatch] = useState<string>('all');
   const [batches, setBatches] = useState<string[]>([]);
-  const [stats, setStats] = useState({ total: 0, present: 0, late: 0, absent: 0, pendingAppeals: 0 });
+  const [stats, setStats] = useState({ present: 0, late: 0, absent: 0 });
   const [lastRun, setLastRun] = useState<{ at: string | null; count: number | null }>({ at: null, count: null });
 
   // New: dashboard analytics state (additive — nothing above this line changed behavior)
@@ -33,7 +33,14 @@ export default function CoordinatorDashboard() {
   const [hospitalCompliance, setHospitalCompliance] = useState<HospitalComplianceRow[]>([]);
   const [riskEntries, setRiskEntries] = useState<RiskEntry[]>([]);
   const [hospitalActivity, setHospitalActivity] = useState<HospitalActivity[]>([]);
-  const [pipeline, setPipeline] = useState({ added: 0, assigned: 0, checkedIn: 0, checkedOut: 0 });
+  const [pipeline, setPipeline] = useState({
+    batchSize: 0,
+    grandTotalStudents: 0,
+    activeStudents: 0,
+    assigned: 0,
+    totalHospitals: 0,
+    activeHospitals: 0,
+  });
   const [runningCheck, setRunningCheck] = useState(false);
   const [runningBackfill, setRunningBackfill] = useState(false);
 
@@ -71,25 +78,42 @@ export default function CoordinatorDashboard() {
     const late = filtered.filter((a) => a.status === 'late' || a.status === 'very_late').length;
     const absent = filtered.filter((a) => a.status === 'absent').length;
 
-    const { count: pendingAppeals } = await supabase
-      .from('appeals')
-      .select('id', { count: 'exact' })
-      .eq('status', 'pending');
+    setStats({ present, late, absent });
 
-    setStats({ total: total ?? 0, present, late, absent, pendingAppeals: pendingAppeals ?? 0 });
+    // ---- Pipeline: "Total student"/"Total hospital" are program-wide
+    // figures (never batch-filtered, even when a batch is selected in the
+    // dropdown above) so they act as a fixed reference point. "Batch size"
+    // is the one that respects the batch dropdown — it's the same query
+    // `total` already was before this change, just relabeled to make clear
+    // it's scoped, since sitting next to an unscoped "Total student" card
+    // it would otherwise be confusing for the two to ever show the same
+    // number without an obvious reason (they will, whenever "All batches"
+    // is selected — that's expected, not a bug, since "batch size" with no
+    // batch filter IS the grand total). ----
+    const { count: grandTotalStudents } = await supabase.from('students').select('id', { count: 'exact', head: true });
 
-    // ---- New: onboarding/attendance pipeline counts ----
-    const [{ data: activeRotationRows }, { data: todayCheckins }] = await Promise.all([
-      supabase.from('rotations').select('student_id').eq('status', 'active'),
-      supabase.from('attendance').select('student_id, check_in_time, check_out_time').eq('date', today),
-    ]);
+    let activeStudentQuery = supabase.from('students').select('id', { count: 'exact', head: true }).eq('status', 'active');
+    if (batch !== 'all') activeStudentQuery = activeStudentQuery.eq('batch', batch);
+    const { count: activeStudents } = await activeStudentQuery;
+
+    // Hospitals aren't tied to a batch at all, so these two are always
+    // program-wide regardless of the batch dropdown.
+    const { count: totalHospitals } = await supabase.from('hospitals').select('id', { count: 'exact', head: true });
+    const { count: activeHospitals } = await supabase
+      .from('hospitals')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_active', true);
+
+    const { data: activeRotationRows } = await supabase.from('rotations').select('student_id').eq('status', 'active');
     const scopedActiveRotations = (activeRotationRows ?? []).filter((r) => !batchStudentIds || batchStudentIds.has(r.student_id));
-    const scopedCheckins = (todayCheckins ?? []).filter((r) => !batchStudentIds || batchStudentIds.has(r.student_id));
+
     setPipeline({
-      added: total ?? 0,
+      batchSize: total ?? 0,
+      grandTotalStudents: grandTotalStudents ?? 0,
+      activeStudents: activeStudents ?? 0,
       assigned: new Set(scopedActiveRotations.map((r) => r.student_id)).size,
-      checkedIn: scopedCheckins.filter((r) => r.check_in_time).length,
-      checkedOut: scopedCheckins.filter((r) => r.check_in_time && r.check_out_time).length,
+      totalHospitals: totalHospitals ?? 0,
+      activeHospitals: activeHospitals ?? 0,
     });
 
     // ---- Everything below is new: analytics, compliance, risk, activity ----
@@ -380,29 +404,50 @@ export default function CoordinatorDashboard() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <StatCard label="Total students" value={stats.total} icon={Users} tone="clinical" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Present today" value={stats.present} icon={CheckCircle2} tone="vital" />
-        <StatCard label="Late today" value={stats.late} icon={Clock} tone="late" />
         <StatCard label="Absent today" value={stats.absent} icon={XCircle} tone="expired" />
-        <StatCard label="Pending appeals" value={stats.pendingAppeals} icon={FileWarning} tone="verylate" />
+        <StatCard label="Late today" value={stats.late} icon={Clock} tone="late" />
       </div>
 
-      {/* Onboarding / attendance pipeline — click any card to jump to its page */}
+      {/* Onboarding / capacity pipeline — click any card to jump to its page */}
       <div>
         <h2 className="mb-3 font-display text-sm font-semibold text-ink-700">Pipeline</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Students added" value={pipeline.added} icon={Users} tone="clinical" to="/coordinator/students" hint="View roster" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard
+            label="Total student"
+            value={pipeline.grandTotalStudents}
+            icon={Users}
+            tone="clinical"
+            to="/coordinator/students"
+            hint="View roster"
+          />
+          <StatCard label="Total hospital" value={pipeline.totalHospitals} icon={HospitalIcon} tone="clinical" to="/coordinator/hospitals" hint="Manage hospitals" />
           <StatCard
             label="Assigned to rotation"
-            value={`${pipeline.assigned} / ${pipeline.added}`}
+            value={`${pipeline.assigned} / ${pipeline.batchSize}`}
             icon={Repeat}
             tone="vital"
             to="/coordinator/rotations"
             hint="Manage rotations"
           />
-          <StatCard label="Checked in today" value={pipeline.checkedIn} icon={CheckCircle2} tone="late" to="/coordinator/attendance" hint="View attendance" />
-          <StatCard label="Checked out today" value={pipeline.checkedOut} icon={LogOut} tone="clinical" to="/coordinator/attendance" hint="View attendance" />
+          <StatCard
+            label="Active hospitals"
+            value={`${pipeline.activeHospitals} / ${pipeline.totalHospitals}`}
+            icon={HospitalIcon}
+            tone="vital"
+            to="/coordinator/hospitals"
+            hint="Manage hospitals"
+          />
+          <StatCard
+            label="Active students"
+            value={`${pipeline.activeStudents} / ${pipeline.batchSize}`}
+            icon={UserCheck}
+            tone="vital"
+            to="/coordinator/students"
+            hint="View roster"
+          />
+          <StatCard label="Batch size" value={pipeline.batchSize} icon={Layers} tone="clinical" />
         </div>
       </div>
 

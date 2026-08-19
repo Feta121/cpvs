@@ -8,6 +8,7 @@ import { fetchProfilesById } from '../../utils/fetchProfiles';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import StatCard from '../../components/ui/StatCard';
 import DashboardBanner from '../../components/ui/DashboardBanner';
+import LiveClock from '../../components/ui/LiveClock';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import AttendanceTrendChart, { TrendPoint } from '../../components/dashboard/AttendanceTrendChart';
 import HospitalComplianceBars, { HospitalComplianceRow } from '../../components/dashboard/HospitalComplianceBars';
@@ -355,6 +356,7 @@ export default function CoordinatorDashboard() {
 
   return (
     <div className="space-y-6">
+      <LiveClock />
       <DashboardBanner />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

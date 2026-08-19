@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, MapPin, CalendarClock, FileWarning, Bell, BellPlus, User,
   Users, Hospital, Repeat, ClipboardList, Megaphone, CalendarX2, LogOut,
-  Sun, Moon, Sparkles, PanelLeftClose, PanelLeftOpen, Search, ChevronDown,
+  Sun, Moon, Sparkles, PanelLeftClose, PanelLeftOpen, Search, ChevronDown, Check,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -317,7 +317,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
       >
         <div className={clsx('flex items-center px-5 py-6', collapsed ? 'justify-center' : 'justify-start')}>
           {collapsed ? (
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-clinical-600 text-lg font-bold text-onPrimary">C</div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-clinical-600 text-onPrimary">
+              <Check size={20} strokeWidth={3} />
+            </div>
           ) : (
             <Wordmark className="h-11" />
           )}

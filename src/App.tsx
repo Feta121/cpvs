@@ -33,6 +33,10 @@ const CoordinatorAppeals = lazy(() => import('./pages/coordinator/Appeals'));
 const CoordinatorAnnouncements = lazy(() => import('./pages/coordinator/Announcements'));
 const CoordinatorExceptions = lazy(() => import('./pages/coordinator/Exceptions'));
 const CoordinatorNotifications = lazy(() => import('./pages/coordinator/Notifications'));
+// Shared between both roles (like ChangePassword above), just routed
+// under each role's own path so it fits inside the sectioned coordinator
+// sidebar / flat student sidebar as an ordinary nav item.
+const Settings = lazy(() => import('./pages/Settings'));
 
 function RoleHome() {
   const { loading, profile, authError, refreshProfile } = useAuth();
@@ -136,6 +140,14 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/student/settings"
+        element={
+          <ProtectedRoute allow={['student']}>
+            <AppShell><Lazy><Settings /></Lazy></AppShell>
+          </ProtectedRoute>
+        }
+      />
 
       {/* Coordinator routes */}
       <Route
@@ -207,6 +219,14 @@ export default function App() {
         element={
           <ProtectedRoute allow={['coordinator']}>
             <AppShell><Lazy><CoordinatorNotifications /></Lazy></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coordinator/settings"
+        element={
+          <ProtectedRoute allow={['coordinator']}>
+            <AppShell><Lazy><Settings /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />

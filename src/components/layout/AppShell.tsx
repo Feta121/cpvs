@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, MapPin, CalendarClock, FileWarning, Bell, BellPlus, User,
   Users, Hospital, Repeat, ClipboardList, Megaphone, CalendarX2, LogOut,
-  Sun, Moon, Sparkles, PanelLeftClose, PanelLeftOpen, Search, ChevronDown, Check,
+  Sun, Moon, Sparkles, PanelLeftClose, PanelLeftOpen, Search, ChevronDown, Check, Settings as SettingsIcon,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -35,6 +35,7 @@ const studentNav: NavItem[] = [
   { to: '/student/appeals', label: 'Appeals', icon: FileWarning },
   { to: '/student/notifications', label: 'Notifications', icon: Bell },
   { to: '/student/profile', label: 'Profile', icon: User },
+  { to: '/student/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
 const coordinatorNav: NavItem[] = [
@@ -47,6 +48,7 @@ const coordinatorNav: NavItem[] = [
   { to: '/coordinator/exceptions', label: 'Exceptions', icon: CalendarX2, section: 'Updates' },
   { to: '/coordinator/announcements', label: 'Announcements', icon: Megaphone, section: 'Updates' },
   { to: '/coordinator/notifications', label: 'Notifications', icon: Bell, section: 'Updates' },
+  { to: '/coordinator/settings', label: 'Settings', icon: SettingsIcon, section: 'App' },
 ];
 
 function matchesActive(pathname: string, item: { to: string; end?: boolean }) {

@@ -34,7 +34,7 @@ export default function CoordinatorDashboard() {
   const [riskEntries, setRiskEntries] = useState<RiskEntry[]>([]);
   const [hospitalActivity, setHospitalActivity] = useState<HospitalActivity[]>([]);
   const [pipeline, setPipeline] = useState({
-    batchSize: 0,
+    scopedStudentTotal: 0,
     grandTotalStudents: 0,
     activeStudents: 0,
     assigned: 0,
@@ -82,14 +82,11 @@ export default function CoordinatorDashboard() {
 
     // ---- Pipeline: "Total student"/"Total hospital" are program-wide
     // figures (never batch-filtered, even when a batch is selected in the
-    // dropdown above) so they act as a fixed reference point. "Batch size"
-    // is the one that respects the batch dropdown — it's the same query
-    // `total` already was before this change, just relabeled to make clear
-    // it's scoped, since sitting next to an unscoped "Total student" card
-    // it would otherwise be confusing for the two to ever show the same
-    // number without an obvious reason (they will, whenever "All batches"
-    // is selected — that's expected, not a bug, since "batch size" with no
-    // batch filter IS the grand total). ----
+    // dropdown above) so they act as a fixed reference point.
+    // "scopedStudentTotal" is the one that respects the batch dropdown —
+    // it's the denominator for Assigned-to-rotation and Active students
+    // (both of those numerators are batch-scoped too, so their denominator
+    // should match). It isn't shown as its own card by itself. ----
     const { count: grandTotalStudents } = await supabase.from('students').select('id', { count: 'exact', head: true });
 
     let activeStudentQuery = supabase.from('students').select('id', { count: 'exact', head: true }).eq('status', 'active');
@@ -108,7 +105,7 @@ export default function CoordinatorDashboard() {
     const scopedActiveRotations = (activeRotationRows ?? []).filter((r) => !batchStudentIds || batchStudentIds.has(r.student_id));
 
     setPipeline({
-      batchSize: total ?? 0,
+      scopedStudentTotal: total ?? 0,
       grandTotalStudents: grandTotalStudents ?? 0,
       activeStudents: activeStudents ?? 0,
       assigned: new Set(scopedActiveRotations.map((r) => r.student_id)).size,
@@ -425,7 +422,7 @@ export default function CoordinatorDashboard() {
           <StatCard label="Total hospital" value={pipeline.totalHospitals} icon={HospitalIcon} tone="clinical" to="/coordinator/hospitals" hint="Manage hospitals" />
           <StatCard
             label="Assigned to rotation"
-            value={`${pipeline.assigned} / ${pipeline.batchSize}`}
+            value={`${pipeline.assigned} / ${pipeline.scopedStudentTotal}`}
             icon={Repeat}
             tone="vital"
             to="/coordinator/rotations"
@@ -441,13 +438,13 @@ export default function CoordinatorDashboard() {
           />
           <StatCard
             label="Active students"
-            value={`${pipeline.activeStudents} / ${pipeline.batchSize}`}
+            value={`${pipeline.activeStudents} / ${pipeline.scopedStudentTotal}`}
             icon={UserCheck}
             tone="vital"
             to="/coordinator/students"
             hint="View roster"
           />
-          <StatCard label="Batch size" value={pipeline.batchSize} icon={Layers} tone="clinical" />
+          <StatCard label="Batch size" value={batches.length} icon={Layers} tone="clinical" hint="Number of batches in the program" />
         </div>
       </div>
 

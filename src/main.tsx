@@ -5,6 +5,7 @@ import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './theme/ThemeProvider';
+import { InstallPromptProvider } from './context/InstallPromptContext';
 import { registerServiceWorker } from './utils/pushNotifications';
 import './index.css';
 
@@ -19,14 +20,20 @@ registerServiceWorker();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ThemeProvider>
-      <BrowserRouter>
-        <ToastProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </ToastProvider>
-      </BrowserRouter>
-    </ThemeProvider>
+    {/* Outermost provider so its beforeinstallprompt listener is attached
+        on the very first render, before anything else — see
+        InstallPromptContext.tsx for why this needs to be a single
+        app-wide listener rather than one per consumer. */}
+    <InstallPromptProvider>
+      <ThemeProvider>
+        <BrowserRouter>
+          <ToastProvider>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </ToastProvider>
+        </BrowserRouter>
+      </ThemeProvider>
+    </InstallPromptProvider>
   </React.StrictMode>
 );

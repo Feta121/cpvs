@@ -159,11 +159,11 @@ export default function Settings() {
   const { profile, signOut } = useAuth();
   const { preference, setPreference } = useTheme();
   const navigate = useNavigate();
-  const [confirmingLogout, setConfirmingLogout] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
-  async function handleLogout() {
-    setLoggingOut(true);
+  async function handleSignOut() {
+    setSigningOut(true);
     await signOut();
     // signOut() clears the Supabase session; ProtectedRoute picks that up
     // and redirects to /login on its own, but navigating explicitly here
@@ -214,21 +214,21 @@ export default function Settings() {
               <KeyRound size={13} />
               Change password
             </Link>
-            <button onClick={() => setConfirmingLogout(true)} className="btn-secondary inline-flex !text-status-expired hover:!border-status-expired/40 px-3 py-1.5 text-xs">
+            <button onClick={() => setConfirmingSignOut(true)} className="theme-danger-btn btn-secondary inline-flex !text-status-expired hover:!border-status-expired/40 px-3 py-1.5 text-xs">
               <LogOut size={13} />
-              Log out
+              Sign out
             </button>
           </div>
         </div>
       </SettingsSection>
 
       <ConfirmDialog
-        open={confirmingLogout}
-        title="Log out of CPVS?"
+        open={confirmingSignOut}
+        title="Sign out of CPVS?"
         message="You'll need to sign back in with your username and password to continue."
-        confirmLabel={loggingOut ? 'Logging out…' : 'Log out'}
-        onConfirm={handleLogout}
-        onCancel={() => setConfirmingLogout(false)}
+        confirmLabel={signingOut ? 'Signing out…' : 'Sign out'}
+        onConfirm={handleSignOut}
+        onCancel={() => setConfirmingSignOut(false)}
       />
 
       <div className="flex items-center gap-2 px-1 text-xs text-ink-300">

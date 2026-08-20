@@ -12,6 +12,7 @@ import { useTheme, ThemePreference } from '../../theme/ThemeProvider';
 import { supabase } from '../../lib/supabase';
 import ErrorBoundary from '../ErrorBoundary';
 import Wordmark from '../ui/Wordmark';
+import ConfirmDialog from '../ui/ConfirmDialog';
 import PushNotificationManager from './PushNotificationManager';
 import { getNotificationPermission, requestNotificationPermission, setAppBadgeCount } from '../../utils/pushNotifications';
 import { useToast } from '../../context/ToastContext';
@@ -298,11 +299,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const nav = profile?.role === 'coordinator' ? coordinatorNav : studentNav;
   const [collapsed, setCollapsed] = useState(false);
   const [search, setSearch] = useState('');
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   const activeItem = nav.find((item) => matchesActive(location.pathname, item)) ?? nav[0];
   const searchMatches = search.trim() ? nav.filter((i) => i.label.toLowerCase().includes(search.trim().toLowerCase())) : [];
 
   async function handleSignOut() {
+    setConfirmingSignOut(false);
     await signOut();
     navigate('/login', { replace: true });
   }
@@ -472,7 +475,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <EnableNotificationsButton />
             <NotificationsMenu />
             <ThemeToggle />
-            <ProfileMenu onSignOut={handleSignOut} />
+            <ProfileMenu onSignOut={() => setConfirmingSignOut(true)} />
           </div>
         </div>
 
@@ -483,7 +486,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <EnableNotificationsButton />
             <NotificationsMenu />
             <ThemeToggle />
-            <button onClick={handleSignOut} className="p-2 text-ink-500">
+            <button onClick={() => setConfirmingSignOut(true)} className="p-2 text-ink-500">
               <LogOut size={18} />
             </button>
           </div>
@@ -528,6 +531,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </main>
+
+      <ConfirmDialog
+        open={confirmingSignOut}
+        title="Sign out of CPVS?"
+        message="You'll need to sign back in with your username and password to continue."
+        confirmLabel="Sign out"
+        onConfirm={handleSignOut}
+        onCancel={() => setConfirmingSignOut(false)}
+      />
     </div>
   );
 }

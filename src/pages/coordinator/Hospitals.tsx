@@ -325,7 +325,7 @@ export default function CoordinatorHospitals() {
               <button
                 onClick={() => handleDelete(h)}
                 disabled={deletingId === h.id}
-                className="hospital-delete-btn btn-secondary min-w-[84px] flex-1 !px-2 !py-1.5 !text-xs !text-status-expired hover:!border-status-expired/40"
+                className="theme-danger-btn btn-secondary min-w-[84px] flex-1 !px-2 !py-1.5 !text-xs !text-status-expired hover:!border-status-expired/40"
               >
                 {deletingId === h.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
               </button>

@@ -1,9 +1,10 @@
 import { Navigate } from 'react-router-dom';
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import type { UserRole } from '../types/database';
 import FullScreenLoader from './ui/FullScreenLoader';
+import ConfirmDialog from './ui/ConfirmDialog';
 
 export default function ProtectedRoute({
   children,
@@ -13,6 +14,7 @@ export default function ProtectedRoute({
   allow: UserRole[];
 }) {
   const { loading, profile, authError, refreshProfile, signOut } = useAuth();
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   if (loading) return <FullScreenLoader label="Checking your session…" />;
 
@@ -29,8 +31,16 @@ export default function ProtectedRoute({
         <p className="max-w-sm text-sm text-ink-700">{authError}</p>
         <div className="flex gap-2">
           <button onClick={() => refreshProfile()} className="btn-primary">Try again</button>
-          <button onClick={() => signOut()} className="btn-secondary">Sign out</button>
+          <button onClick={() => setConfirmingSignOut(true)} className="btn-secondary">Sign out</button>
         </div>
+        <ConfirmDialog
+          open={confirmingSignOut}
+          title="Sign out of CPVS?"
+          message="You'll need to sign back in with your username and password to continue."
+          confirmLabel="Sign out"
+          onConfirm={() => signOut()}
+          onCancel={() => setConfirmingSignOut(false)}
+        />
       </div>
     );
   }

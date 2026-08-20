@@ -1,6 +1,22 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- Captures beforeinstallprompt as early as physically possible —
+         before the React bundle even starts downloading, since a module
+         script (below, deferred by spec) can easily lose a race against
+         an event that fires almost immediately on page load. A listener
+         added later inside a React useEffect can simply miss it entirely.
+         InstallPromptContext.tsx reads window.__cpvsInstallPrompt on
+         mount instead of relying solely on a live listener attached after
+         hydration. -->
+    <script>
+      window.__cpvsInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__cpvsInstallPrompt = e;
+        window.dispatchEvent(new Event('cpvs:installpromptready'));
+      });
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CPVS — Clinical Practice Verification System</title>

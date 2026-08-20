@@ -43,20 +43,39 @@ const InstallPromptContext = createContext<InstallPromptValue | null>(null);
  * but because it was listening for an event that had already come and
  * gone. Making this a single Provider with one listener, consumed via
  * context, means every consumer sees the same state.
+ *
+ * That fixed "two React listeners racing each other", but there's a
+ * second, earlier race: `beforeinstallprompt` can fire before React has
+ * even finished loading and hydrating, in which case a listener attached
+ * inside a useEffect here misses it no matter how early it runs. index.html
+ * has a plain <script> in <head> — the earliest point anything can run on
+ * the page — that captures the event onto `window.__cpvsInstallPrompt`
+ * before our bundle has even started downloading. This effect below reads
+ * that pre-captured value on mount (covers "fired before React existed")
+ * and also listens for it live (covers "fires normally, after mount").
  */
 export function InstallPromptProvider({ children }: { children: ReactNode }) {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(
+    () => (window as unknown as { __cpvsInstallPrompt?: BeforeInstallPromptEvent }).__cpvsInstallPrompt ?? null
+  );
   const standalone = isStandalone();
 
   useEffect(() => {
     if (standalone) return; // already installed — nothing to capture
 
-    function handleBeforeInstallPrompt(e: Event) {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    function readCaptured() {
+      const captured = (window as unknown as { __cpvsInstallPrompt?: BeforeInstallPromptEvent }).__cpvsInstallPrompt;
+      if (captured) setDeferredPrompt(captured);
     }
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Covers the event having fired between the inline <script> in
+    // index.html running and this effect subscribing.
+    readCaptured();
+    // Covers the event firing after this effect has subscribed — the
+    // inline script's own listener still does the actual capturing (it
+    // was first), this just tells us to go re-read what it stored.
+    window.addEventListener('cpvs:installpromptready', readCaptured);
+    return () => window.removeEventListener('cpvs:installpromptready', readCaptured);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,6 +84,7 @@ export function InstallPromptProvider({ children }: { children: ReactNode }) {
     await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     setDeferredPrompt(null); // a captured prompt event can only be used once
+    (window as unknown as { __cpvsInstallPrompt?: BeforeInstallPromptEvent | null }).__cpvsInstallPrompt = null;
     return outcome;
   }, [deferredPrompt]);
 

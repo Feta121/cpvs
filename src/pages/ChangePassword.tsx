@@ -3,14 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export default function ChangePassword() {
   const { profile, refreshProfile } = useAuth();
+  const { showSuccess } = useToast();
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Forced first-login flow (must_change_password) has no Cancel — there's
+  // nothing to go back to yet, the account isn't fully set up. Reached
+  // voluntarily instead (from Settings), Cancel makes sense and is shown.
+  const isForced = !!profile?.must_change_password;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,6 +59,7 @@ export default function ChangePassword() {
 
 await refreshProfile();
 setSubmitting(false);
+showSuccess('Password updated successfully.');
 navigate("/", { replace: true });
 }
 
@@ -62,9 +70,11 @@ navigate("/", { replace: true });
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-vital-600 text-onAccent shadow-glass">
             <KeyRound size={22} />
           </div>
-          <h1 className="font-display text-xl font-semibold text-ink-900">Set a new password</h1>
+          <h1 className="font-display text-xl font-semibold text-ink-900">
+            {isForced ? 'Set a new password' : 'Change your password'}
+          </h1>
           <p className="mt-1 text-sm text-ink-500">
-            This is your first sign-in. Choose a password only you know.
+            {isForced ? 'This is your first sign-in. Choose a password only you know.' : 'Choose a new password for your account.'}
           </p>
         </div>
 
@@ -96,10 +106,22 @@ navigate("/", { replace: true });
             </div>
           )}
 
-          <button type="submit" disabled={submitting} className="btn-primary w-full">
-            {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
-            Save and continue
-          </button>
+          <div className={isForced ? '' : 'flex gap-2'}>
+            {!isForced && (
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                disabled={submitting}
+                className="btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+            )}
+            <button type="submit" disabled={submitting} className={isForced ? 'btn-primary w-full' : 'btn-primary flex-1'}>
+              {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
+              Save and continue
+            </button>
+          </div>
         </form>
       </div>
     </div>

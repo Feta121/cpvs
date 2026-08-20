@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Sun, Moon, Sparkles, Download, Share, RefreshCw, CheckCircle2, KeyRound, Bell, BellOff, Info, type LucideIcon } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Sun, Moon, Sparkles, Download, Share, RefreshCw, CheckCircle2, KeyRound, Bell, BellOff, Info, LogOut, type LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, ThemePreference } from '../theme/ThemeProvider';
 import { useToast } from '../context/ToastContext';
 import { useInstallPrompt, getInstallInstructions } from '../hooks/useInstallPrompt';
 import { getNotificationPermission, requestNotificationPermission } from '../utils/pushNotifications';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 const THEME_OPTIONS: { value: ThemePreference; icon: LucideIcon; label: string; blurb: string }[] = [
   { value: 'light', icon: Sun, label: 'Light', blurb: 'Bright, high-contrast' },
@@ -155,8 +156,20 @@ function NotificationRow() {
 }
 
 export default function Settings() {
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const { preference, setPreference } = useTheme();
+  const navigate = useNavigate();
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await signOut();
+    // signOut() clears the Supabase session; ProtectedRoute picks that up
+    // and redirects to /login on its own, but navigating explicitly here
+    // avoids a flash of a now-unauthenticated Settings page first.
+    navigate('/login', { replace: true });
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -196,12 +209,27 @@ export default function Settings() {
               <p className="text-sm text-ink-500">{profile?.email}</p>
             </div>
           </div>
-          <Link to="/change-password" className="btn-secondary inline-flex px-3 py-1.5 text-xs">
-            <KeyRound size={13} />
-            Change password
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/change-password" className="btn-secondary inline-flex px-3 py-1.5 text-xs">
+              <KeyRound size={13} />
+              Change password
+            </Link>
+            <button onClick={() => setConfirmingLogout(true)} className="btn-secondary inline-flex !text-status-expired hover:!border-status-expired/40 px-3 py-1.5 text-xs">
+              <LogOut size={13} />
+              Log out
+            </button>
+          </div>
         </div>
       </SettingsSection>
+
+      <ConfirmDialog
+        open={confirmingLogout}
+        title="Log out of CPVS?"
+        message="You'll need to sign back in with your username and password to continue."
+        confirmLabel={loggingOut ? 'Logging out…' : 'Log out'}
+        onConfirm={handleLogout}
+        onCancel={() => setConfirmingLogout(false)}
+      />
 
       <div className="flex items-center gap-2 px-1 text-xs text-ink-300">
         <Info size={13} />

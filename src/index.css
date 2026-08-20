@@ -279,6 +279,24 @@ body {
     @apply btn-base bg-status-expired text-white shadow-sm hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lift;
   }
 
+  /* Hospitals page Delete button: solid red with white text/icon on the
+     Dark and Aether themes specifically (Light keeps its original subtle
+     red-outline-on-neutral-card look, unchanged). Scoped by ancestor class
+     rather than a Tailwind `dark:` variant because Aether doesn't carry
+     the `.dark` class at all (it's its own theme class), so a plain
+     `dark:` utility would only ever catch Dark, not Aether. */
+  .dark .hospital-delete-btn,
+  .theme-aether .hospital-delete-btn {
+    background-color: rgb(var(--danger));
+    color: #fff !important; /* must win over the !text-status-expired utility on this button, which is itself !important */
+    border-color: transparent;
+  }
+  .dark .hospital-delete-btn:hover,
+  .theme-aether .hospital-delete-btn:hover {
+    filter: brightness(1.1);
+    border-color: transparent;
+  }
+
   .btn-success {
     @apply btn-base bg-status-present text-white shadow-sm hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lift;
   }

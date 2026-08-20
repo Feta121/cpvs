@@ -4,7 +4,7 @@ import { Sun, Moon, Sparkles, Download, Share, RefreshCw, CheckCircle2, KeyRound
 import { useAuth } from '../context/AuthContext';
 import { useTheme, ThemePreference } from '../theme/ThemeProvider';
 import { useToast } from '../context/ToastContext';
-import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import { useInstallPrompt, getInstallInstructions } from '../hooks/useInstallPrompt';
 import { getNotificationPermission, requestNotificationPermission } from '../utils/pushNotifications';
 
 const THEME_OPTIONS: { value: ThemePreference; icon: LucideIcon; label: string; blurb: string }[] = [
@@ -29,7 +29,7 @@ function SettingsSection({ title, description, children }: { title: string; desc
  * anymore, so it switches to a manual "check for updates" action instead. */
 function InstallOrUpdateRow() {
   const { showSuccess, showError } = useToast();
-  const { canInstall, isIOS, isStandalone, install } = useInstallPrompt();
+  const { canInstall, isStandalone, install } = useInstallPrompt();
   const [checking, setChecking] = useState(false);
 
   async function handleInstall() {
@@ -94,23 +94,30 @@ function InstallOrUpdateRow() {
     );
   }
 
-  if (isIOS) {
-    return (
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
-          <Share size={18} />
-        </div>
-        <p className="text-sm text-ink-500">
-          Tap <Share size={13} className="mb-0.5 inline" /> Share, then "Add to Home Screen" to install CPVS.
-        </p>
+  // No captured native prompt — either this browser doesn't support one
+  // at all, or Chrome's own engagement heuristic hasn't been satisfied for
+  // this visitor yet. Neither of those is something a website can force,
+  // so every visitor gets real, browser-specific manual steps instead of
+  // a dead end.
+  const { steps, unsupported } = getInstallInstructions();
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
+        <Share size={18} />
       </div>
-    );
-  }
-
-  // Neither installable nor iOS and not standalone — most likely a desktop
-  // browser that doesn't support installable PWAs, or install criteria
-  // haven't been met yet (Chrome waits for some engagement first).
-  return <p className="text-sm text-ink-400">Install isn't available in this browser right now.</p>;
+      <div className="text-sm text-ink-500">
+        {unsupported ? (
+          <p>{steps[0]}</p>
+        ) : (
+          <ol className="list-decimal space-y-0.5 pl-4">
+            {steps.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function NotificationRow() {

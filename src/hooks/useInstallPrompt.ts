@@ -6,4 +6,4 @@
 // whichever consumer happened to be mounted first actually saw it. Kept
 // as a thin re-export so existing imports (InstallPrompt.tsx, Settings.tsx)
 // don't need to change.
-export { useInstallPrompt, isStandalone, isIOS } from '../context/InstallPromptContext';
+export { useInstallPrompt, isStandalone, isIOS, getInstallInstructions } from '../context/InstallPromptContext';

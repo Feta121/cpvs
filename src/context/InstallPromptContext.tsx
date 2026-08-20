@@ -22,6 +22,51 @@ export function isIOS() {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
 }
 
+/**
+ * Manual, always-available fallback for when there's no captured
+ * `beforeinstallprompt` to trigger — either because this browser doesn't
+ * support that API at all (Firefox, desktop Safari), or because Chrome's
+ * own engagement heuristic hasn't been satisfied yet for this visitor. No
+ * website can force either of those from the outside, so instead of a
+ * dead-end "not available" message, every real browser gets its own real
+ * set of manual steps — nobody sees a message with nothing they can do
+ * about it.
+ */
+export function getInstallInstructions(): { steps: string[]; unsupported?: boolean } {
+  const ua = navigator.userAgent;
+  const ios = isIOS();
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua);
+  const isFirefox = /Firefox|FxiOS/.test(ua);
+  const isEdge = /Edg\//.test(ua);
+  const isChromium = /Chrome|CriOS/.test(ua) || isEdge || /SamsungBrowser/.test(ua);
+
+  if (ios) {
+    if (isSafari) return { steps: ['Tap the Share icon in the toolbar', 'Scroll down and tap "Add to Home Screen"'] };
+    // Only Safari can install on iOS — every other iOS browser (Chrome,
+    // Firefox, etc.) is a WebKit wrapper without that capability at all,
+    // no matter what we do in JS.
+    return { steps: ['Open this page in Safari — other iOS browsers can\'t install apps to your home screen'], unsupported: true };
+  }
+
+  if (isChromium) {
+    // Covers Android Chrome/Edge/Samsung Internet before the automatic
+    // prompt has fired, and desktop Chrome/Edge.
+    return {
+      steps: [
+        'Open your browser\'s menu (⋮ or ≡ in the top corner)',
+        'Look for "Install app" or "Add to Home screen"',
+      ],
+    };
+  }
+
+  if (isFirefox) {
+    return { steps: ['Firefox doesn\'t support installing this as an app yet — try Chrome or Edge instead'], unsupported: true };
+  }
+
+  // Desktop Safari, or anything unrecognized.
+  return { steps: ['Look for an "Install" or "Add to Home Screen" option in your browser\'s menu'] };
+}
+
 interface InstallPromptValue {
   canInstall: boolean;
   isIOS: boolean;

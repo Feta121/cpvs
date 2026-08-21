@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, CalendarX2, CalendarPlus2, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import Badge from '../../components/ui/Badge';
@@ -33,6 +34,7 @@ async function findAffectedStudents(scope: { hospital_id: string; batch: string;
 
 export default function CoordinatorExceptions() {
   const { coordinator } = useAuth();
+  const { has } = usePermissions();
   const { showSuccess, showError } = useToast();
 
   const [exceptions, setExceptions] = useState<(PracticeException & { hospital: Hospital | null })[]>([]);
@@ -205,12 +207,14 @@ export default function CoordinatorExceptions() {
             <h1 className="font-display text-2xl font-semibold text-ink-900">Practice exceptions</h1>
             <p className="mt-1 text-sm text-ink-500">Holidays, hospital closures, and cancelled clinical days don't count as absences.</p>
           </div>
-          <button onClick={() => setShowExceptionForm((s) => !s)} className="btn-primary">
-            <Plus size={16} /> Add exception
-          </button>
+          {has('can_manage_schedules') && (
+            <button onClick={() => setShowExceptionForm((s) => !s)} className="btn-primary">
+              <Plus size={16} /> Add exception
+            </button>
+          )}
         </div>
 
-        {showExceptionForm && (
+        {showExceptionForm && has('can_manage_schedules') && (
           <form onSubmit={handleExceptionSubmit} className="surface-card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Hospital (optional — leave blank for all)</label>
@@ -277,14 +281,16 @@ export default function CoordinatorExceptions() {
                 </div>
                 {it.reason && <p className="mt-1 text-xs text-ink-500">{it.reason}</p>}
               </div>
-              <button
-                onClick={() => setPendingDeleteException(it)}
-                disabled={deletingExceptionId === it.id}
-                title="Delete exception"
-                className="shrink-0 rounded-lg border border-status-expired/30 p-1.5 text-status-expired hover:bg-status-expired/5"
-              >
-                {deletingExceptionId === it.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              </button>
+              {has('can_manage_schedules') && (
+                <button
+                  onClick={() => setPendingDeleteException(it)}
+                  disabled={deletingExceptionId === it.id}
+                  title="Delete exception"
+                  className="theme-danger-btn shrink-0 rounded-lg border border-status-expired/30 p-1.5 text-status-expired hover:bg-status-expired/5"
+                >
+                  {deletingExceptionId === it.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -299,12 +305,14 @@ export default function CoordinatorExceptions() {
               Adds practice on a day that wouldn't otherwise count (practice normally runs Monday, Tuesday, and Wednesday only) — for example, a makeup day.
             </p>
           </div>
-          <button onClick={() => setShowSpecialDayForm((s) => !s)} className="btn-primary">
-            <Plus size={16} /> Add practice day
-          </button>
+          {has('can_manage_schedules') && (
+            <button onClick={() => setShowSpecialDayForm((s) => !s)} className="btn-primary">
+              <Plus size={16} /> Add practice day
+            </button>
+          )}
         </div>
 
-        {showSpecialDayForm && (
+        {showSpecialDayForm && has('can_manage_schedules') && (
           <form onSubmit={handleSpecialDaySubmit} className="surface-card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Hospital (optional — leave blank for all)</label>
@@ -363,14 +371,16 @@ export default function CoordinatorExceptions() {
                 </div>
                 {it.reason && <p className="mt-1 text-xs text-ink-500">{it.reason}</p>}
               </div>
-              <button
-                onClick={() => setPendingDeleteSpecialDay(it)}
-                disabled={deletingSpecialDayId === it.id}
-                title="Delete practice day"
-                className="shrink-0 rounded-lg border border-status-expired/30 p-1.5 text-status-expired hover:bg-status-expired/5"
-              >
-                {deletingSpecialDayId === it.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              </button>
+              {has('can_manage_schedules') && (
+                <button
+                  onClick={() => setPendingDeleteSpecialDay(it)}
+                  disabled={deletingSpecialDayId === it.id}
+                  title="Delete practice day"
+                  className="theme-danger-btn shrink-0 rounded-lg border border-status-expired/30 p-1.5 text-status-expired hover:bg-status-expired/5"
+                >
+                  {deletingSpecialDayId === it.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                </button>
+              )}
             </div>
           ))}
         </div>

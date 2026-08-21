@@ -56,6 +56,19 @@ Deno.serve(async (req) => {
     if (callerProfileError) return json({ error: 'Unable to verify your account role. ' + callerProfileError.message }, 500);
     if (callerProfile?.role !== 'coordinator') return json({ error: 'Only coordinators can delete student accounts.' }, 403);
 
+    // Added in migration 0012 (coordinator permissions). Service-role key
+    // bypasses RLS, so this explicit check is the real enforcement here.
+    const { data: callerCoordinator, error: callerCoordinatorError } = await admin
+      .from('coordinators')
+      .select('is_active, is_super_coordinator, can_delete_students')
+      .eq('id', userData.user.id)
+      .maybeSingle();
+    if (callerCoordinatorError) return json({ error: 'Unable to verify your permissions. ' + callerCoordinatorError.message }, 500);
+    if (!callerCoordinator?.is_active) return json({ error: 'Your coordinator account has been deactivated.' }, 403);
+    if (!callerCoordinator.is_super_coordinator && !callerCoordinator.can_delete_students) {
+      return json({ error: "You don't have permission to delete student accounts." }, 403);
+    }
+
     const body = await req.json().catch(() => null);
     const studentId = body?.studentId;
     if (!studentId) return json({ error: 'Missing student id.' }, 400);

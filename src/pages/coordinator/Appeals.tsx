@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, X, Loader2, Paperclip } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import Badge from '../../components/ui/Badge';
@@ -13,6 +14,7 @@ type Row = Appeal & { profile: Profile | null; attendance: AttendanceRecord | nu
 
 export default function CoordinatorAppeals() {
   const { coordinator } = useAuth();
+  const { has } = usePermissions();
   const { showError } = useToast();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,20 +114,22 @@ export default function CoordinatorAppeals() {
                 </button>
               )}
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <input
-                  placeholder="Optional comment…"
-                  className="input-field flex-1"
-                  value={comments[r.id] ?? ''}
-                  onChange={(e) => setComments({ ...comments, [r.id]: e.target.value })}
-                />
-                <button onClick={() => review(r, 'approved')} disabled={working === r.id} className="btn-primary !bg-vital-600 hover:!bg-vital-700">
-                  {working === r.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve
-                </button>
-                <button onClick={() => review(r, 'rejected')} disabled={working === r.id} className="btn-secondary">
-                  <X size={14} /> Reject
-                </button>
-              </div>
+              {has('can_review_appeals') && (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <input
+                    placeholder="Optional comment…"
+                    className="input-field flex-1"
+                    value={comments[r.id] ?? ''}
+                    onChange={(e) => setComments({ ...comments, [r.id]: e.target.value })}
+                  />
+                  <button onClick={() => review(r, 'approved')} disabled={working === r.id} className="btn-primary !bg-vital-600 hover:!bg-vital-700">
+                    {working === r.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approve
+                  </button>
+                  <button onClick={() => review(r, 'rejected')} disabled={working === r.id} className="btn-secondary">
+                    <X size={14} /> Reject
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

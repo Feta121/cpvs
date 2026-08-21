@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Plus, Hospital as HospitalIcon, Loader2, Pencil, Trash2, Power, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -21,6 +22,7 @@ const emptyForm = {
 
 export default function CoordinatorHospitals() {
   const { coordinator } = useAuth();
+  const { has } = usePermissions();
   const { showSuccess, showError } = useToast();
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
@@ -206,9 +208,11 @@ export default function CoordinatorHospitals() {
           <h1 className="font-display text-2xl font-semibold text-ink-900">Hospitals</h1>
           <p className="mt-1 text-sm text-ink-500">Configure GPS geofences for each clinical site.</p>
         </div>
-        <button onClick={openAddForm} className="btn-primary">
-          <Plus size={16} /> Add hospital
-        </button>
+        {has('can_create_hospitals') && (
+          <button onClick={openAddForm} className="btn-primary">
+            <Plus size={16} /> Add hospital
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -316,19 +320,25 @@ export default function CoordinatorHospitals() {
             </dl>
 
             <div className="mt-4 flex flex-wrap gap-1.5 border-t border-surface-line pt-3">
-              <button onClick={() => openEditForm(h)} className="btn-secondary min-w-[84px] flex-1 !px-2 !py-1.5 !text-xs">
-                <Pencil size={13} /> Edit
-              </button>
-              <button onClick={() => toggleActive(h)} className="btn-secondary min-w-[84px] flex-1 !px-2 !py-1.5 !text-xs">
-                <Power size={13} /> {h.is_active ? 'Deactivate' : 'Activate'}
-              </button>
-              <button
-                onClick={() => handleDelete(h)}
-                disabled={deletingId === h.id}
-                className="theme-danger-btn btn-secondary min-w-[84px] flex-1 !px-2 !py-1.5 !text-xs !text-status-expired hover:!border-status-expired/40"
-              >
-                {deletingId === h.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
-              </button>
+              {has('can_edit_hospitals') && (
+                <button onClick={() => openEditForm(h)} className="btn-secondary min-w-[84px] flex-1 !px-2 !py-1.5 !text-xs">
+                  <Pencil size={13} /> Edit
+                </button>
+              )}
+              {has('can_edit_hospitals') && (
+                <button onClick={() => toggleActive(h)} className="btn-secondary min-w-[84px] flex-1 !px-2 !py-1.5 !text-xs">
+                  <Power size={13} /> {h.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+              )}
+              {has('can_delete_hospitals') && (
+                <button
+                  onClick={() => handleDelete(h)}
+                  disabled={deletingId === h.id}
+                  className="theme-danger-btn btn-secondary min-w-[84px] flex-1 !px-2 !py-1.5 !text-xs !text-status-expired hover:!border-status-expired/40"
+                >
+                  {deletingId === h.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
+                </button>
+              )}
             </div>
           </div>
         ))}

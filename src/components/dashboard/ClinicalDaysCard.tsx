@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import type { ClinicalDaysConfig } from '../../types/database';
 
@@ -24,6 +25,8 @@ const DAYS: { key: keyof Omit<ClinicalDaysConfig, 'id' | 'updated_by' | 'updated
  */
 export default function ClinicalDaysCard() {
   const { coordinator } = useAuth();
+  const { has } = usePermissions();
+  const canEdit = has('can_manage_schedules');
   const { showSuccess, showError } = useToast();
   const [config, setConfig] = useState<ClinicalDaysConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,8 +94,8 @@ export default function ClinicalDaysCard() {
                   aria-checked={active}
                   aria-label={`${d.label} clinical day`}
                   onClick={() => toggle(d.key)}
-                  disabled={savingKey === d.key}
-                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-60 ${
+                  disabled={savingKey === d.key || !canEdit}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${
                     active ? 'bg-clinical-500' : 'bg-ink-300/50'
                   }`}
                 >

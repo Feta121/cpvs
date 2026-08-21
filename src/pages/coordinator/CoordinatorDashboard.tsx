@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Users, UserCheck, CheckCircle2, Clock, XCircle, TrendingUp, Hospital as HospitalIcon, ShieldAlert, Activity, Layers, Repeat, RefreshCw, Loader2 } from 'lucide-react';
 import { startOfWeek, format, subWeeks, formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
@@ -22,6 +23,7 @@ const WEEKS_OF_TREND = 8;
 
 export default function CoordinatorDashboard() {
   const { coordinator } = useAuth();
+  const { has } = usePermissions();
   const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [batch, setBatch] = useState<string>('all');
@@ -364,14 +366,18 @@ export default function CoordinatorDashboard() {
           <p className="mt-1 text-sm text-ink-500">Today's snapshot across your assigned students.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={runAbsenceCheck} disabled={runningCheck} className="btn-secondary" title="Manually mark absent any student past their hospital's check-in cutoff with no record today">
-            {runningCheck ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-            Check for missed check-ins
-          </button>
-          <button onClick={runBackfill} disabled={runningBackfill} className="btn-secondary" title="Checks every day since the last backfill (or up to 60 days back) through today, marking any missed check-ins absent">
-            {runningBackfill ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-            Backfill
-          </button>
+          {has('can_manage_attendance') && (
+            <>
+              <button onClick={runAbsenceCheck} disabled={runningCheck} className="btn-secondary" title="Manually mark absent any student past their hospital's check-in cutoff with no record today">
+                {runningCheck ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                Check for missed check-ins
+              </button>
+              <button onClick={runBackfill} disabled={runningBackfill} className="btn-secondary" title="Checks every day since the last backfill (or up to 60 days back) through today, marking any missed check-ins absent">
+                {runningBackfill ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                Backfill
+              </button>
+            </>
+          )}
           <select value={batch} onChange={(e) => setBatch(e.target.value)} className="input-field w-full sm:w-56">
             <option value="all">All batches</option>
             {batches.map((b) => (

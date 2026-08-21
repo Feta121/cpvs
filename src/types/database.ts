@@ -46,7 +46,43 @@ export interface Coordinator {
   id: string;
   department: string | null;
   created_at: string;
+  /** Added in migration 0012. Bypasses every can_* permission below —
+   * only a Super Coordinator can manage other coordinator accounts
+   * (create/edit/activate/deactivate/reset password/delete) and change
+   * anyone's permissions, including promoting/demoting this flag itself. */
+  is_super_coordinator: boolean;
+  /** Added in migration 0012. A deactivated coordinator keeps their
+   * account and history but loses all coordinator-level access. */
+  is_active: boolean;
+  can_create_students: boolean;
+  can_edit_students: boolean;
+  can_delete_students: boolean;
+  can_create_hospitals: boolean;
+  can_edit_hospitals: boolean;
+  can_delete_hospitals: boolean;
+  can_create_rotations: boolean;
+  can_edit_rotations: boolean;
+  can_delete_rotations: boolean;
+  can_manage_attendance: boolean;
+  can_review_appeals: boolean;
+  can_send_announcements: boolean;
+  can_manage_schedules: boolean;
+  /** Reserved — no page uses this yet. */
+  can_view_reports: boolean;
+  /** Reserved — no page uses this yet. */
+  can_system_settings: boolean;
 }
+
+/** All granular (non-super, non-active) permission flags, added in
+ * migration 0012. Kept as a standalone type so usePermissions() and the
+ * permissions editor UI can iterate over exactly this set without
+ * hardcoding the list of keys in more than one place. */
+export type PermissionKey =
+  | 'can_create_students' | 'can_edit_students' | 'can_delete_students'
+  | 'can_create_hospitals' | 'can_edit_hospitals' | 'can_delete_hospitals'
+  | 'can_create_rotations' | 'can_edit_rotations' | 'can_delete_rotations'
+  | 'can_manage_attendance' | 'can_review_appeals' | 'can_send_announcements'
+  | 'can_manage_schedules' | 'can_view_reports' | 'can_system_settings';
 
 export interface Hospital {
   id: string;

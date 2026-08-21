@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
@@ -14,6 +15,7 @@ type RotationRow = Rotation & { student: (Student & { profile: Profile | null })
 
 export default function CoordinatorRotations() {
   const { coordinator } = useAuth();
+  const { has } = usePermissions();
   const { showSuccess, showError } = useToast();
   const [rotations, setRotations] = useState<RotationRow[]>([]);
   const [students, setStudents] = useState<(Student & { profile: Profile | null })[]>([]);
@@ -155,13 +157,15 @@ export default function CoordinatorRotations() {
             <option value="all">All batches</option>
             {batches.map((b) => <option key={b} value={b}>Batch {b}</option>)}
           </select>
-          <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
-            <Plus size={16} /> Assign rotation
-          </button>
+          {has('can_create_rotations') && (
+            <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
+              <Plus size={16} /> Assign rotation
+            </button>
+          )}
         </div>
       </div>
 
-      {showForm && (
+      {showForm && has('can_create_rotations') && (
         <form onSubmit={handleSubmit} className="surface-card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">Student</label>
@@ -222,14 +226,16 @@ export default function CoordinatorRotations() {
                       <Badge tone={r.status === 'active' ? 'present' : r.status === 'cancelled' ? 'expired' : 'neutral'}>{r.status}</Badge>
                     </td>
                     <td className="px-5 py-3">
-                      <button
-                        onClick={() => handleDelete(r)}
-                        disabled={deletingId === r.id}
-                        title="Delete rotation"
-                        className="rounded-lg border border-status-expired/30 p-1.5 text-status-expired hover:bg-status-expired/5"
-                      >
-                        {deletingId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                      </button>
+                      {has('can_delete_rotations') && (
+                        <button
+                          onClick={() => handleDelete(r)}
+                          disabled={deletingId === r.id}
+                          title="Delete rotation"
+                          className="theme-danger-btn rounded-lg border border-status-expired/30 p-1.5 text-status-expired hover:bg-status-expired/5"
+                        >
+                          {deletingId === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -4,10 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, MapPin, CalendarClock, FileWarning, Bell, BellPlus, User,
   Users, Hospital, Repeat, ClipboardList, Megaphone, CalendarX2, LogOut,
-  Sun, Moon, Sparkles, PanelLeftClose, PanelLeftOpen, Search, ChevronDown, Check, Settings as SettingsIcon,
+  Sun, Moon, Sparkles, PanelLeftClose, PanelLeftOpen, Search, ChevronDown, Check, Settings as SettingsIcon, UserCog,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useTheme, ThemePreference } from '../../theme/ThemeProvider';
 import { supabase } from '../../lib/supabase';
 import ErrorBoundary from '../ErrorBoundary';
@@ -17,7 +18,7 @@ import PushNotificationManager from './PushNotificationManager';
 import { getNotificationPermission, requestNotificationPermission, setAppBadgeCount } from '../../utils/pushNotifications';
 import { useToast } from '../../context/ToastContext';
 import clsx from 'clsx';
-import type { NotificationRow } from '../../types/database';
+import type { NotificationRow, PermissionKey } from '../../types/database';
 
 interface NavItem {
   to: string;
@@ -27,6 +28,13 @@ interface NavItem {
   /** Groups items under a heading in the desktop sidebar. Items without one
    * (studentNav) render flat, unchanged. */
   section?: string;
+  /** Added in migration 0012. If set, this item is hidden unless the
+   * signed-in coordinator has at least one of these permissions (or is a
+   * Super Coordinator). Items with no `permissions` (Dashboard, Settings,
+   * Notifications, Coordinators) are always visible — Coordinators is
+   * intentionally visible to every coordinator per spec (view-only unless
+   * you're a Super Coordinator; the page itself gates the actions). */
+  permissions?: PermissionKey[];
 }
 
 const studentNav: NavItem[] = [
@@ -41,13 +49,14 @@ const studentNav: NavItem[] = [
 
 const coordinatorNav: NavItem[] = [
   { to: '/coordinator', label: 'Dashboard', icon: LayoutDashboard, end: true, section: 'Program' },
-  { to: '/coordinator/students', label: 'Students', icon: Users, section: 'Program' },
-  { to: '/coordinator/hospitals', label: 'Hospitals', icon: Hospital, section: 'Program' },
-  { to: '/coordinator/rotations', label: 'Rotations', icon: Repeat, section: 'Program' },
-  { to: '/coordinator/attendance', label: 'Attendance', icon: ClipboardList, section: 'Attendance' },
-  { to: '/coordinator/appeals', label: 'Appeals', icon: FileWarning, section: 'Attendance' },
-  { to: '/coordinator/exceptions', label: 'Exceptions', icon: CalendarX2, section: 'Updates' },
-  { to: '/coordinator/announcements', label: 'Announcements', icon: Megaphone, section: 'Updates' },
+  { to: '/coordinator/students', label: 'Students', icon: Users, section: 'Program', permissions: ['can_create_students', 'can_edit_students', 'can_delete_students'] },
+  { to: '/coordinator/hospitals', label: 'Hospitals', icon: Hospital, section: 'Program', permissions: ['can_create_hospitals', 'can_edit_hospitals', 'can_delete_hospitals'] },
+  { to: '/coordinator/rotations', label: 'Rotations', icon: Repeat, section: 'Program', permissions: ['can_create_rotations', 'can_edit_rotations', 'can_delete_rotations'] },
+  { to: '/coordinator/coordinators', label: 'Coordinators', icon: UserCog, section: 'Program' },
+  { to: '/coordinator/attendance', label: 'Attendance', icon: ClipboardList, section: 'Attendance', permissions: ['can_manage_attendance'] },
+  { to: '/coordinator/appeals', label: 'Appeals', icon: FileWarning, section: 'Attendance', permissions: ['can_review_appeals'] },
+  { to: '/coordinator/exceptions', label: 'Exceptions', icon: CalendarX2, section: 'Updates', permissions: ['can_manage_schedules'] },
+  { to: '/coordinator/announcements', label: 'Announcements', icon: Megaphone, section: 'Updates', permissions: ['can_send_announcements'] },
   { to: '/coordinator/notifications', label: 'Notifications', icon: Bell, section: 'Updates' },
   { to: '/coordinator/settings', label: 'Settings', icon: SettingsIcon, section: 'App' },
 ];
@@ -294,9 +303,16 @@ function ProfileMenu({ onSignOut }: { onSignOut: () => void }) {
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { profile, signOut } = useAuth();
+  const { hasAny } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
-  const nav = profile?.role === 'coordinator' ? coordinatorNav : studentNav;
+  const rawNav = profile?.role === 'coordinator' ? coordinatorNav : studentNav;
+  // Added in migration 0012: hide any coordinator nav item the signed-in
+  // coordinator has none of the relevant permissions for. Items with no
+  // `permissions` array (Dashboard, Settings, Notifications, Coordinators)
+  // are always shown. Student nav is untouched — none of its items carry a
+  // `permissions` field, so every item passes this filter unchanged.
+  const nav = rawNav.filter((item) => !item.permissions || hasAny(item.permissions));
   const [collapsed, setCollapsed] = useState(false);
   const [search, setSearch] = useState('');
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);

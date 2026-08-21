@@ -40,12 +40,13 @@ function groupByDay(rows: Row[]): [string, Row[]][] {
   return Array.from(groups.entries()).sort(([a], [b]) => b.localeCompare(a));
 }
 
-function StatusSelect({ row, colorScheme, onCorrectStatus }: { row: Row; colorScheme: 'light' | 'dark'; onCorrectStatus: (id: string, status: AttendanceStatus) => void }) {
+function StatusSelect({ row, colorScheme, onCorrectStatus, disabled }: { row: Row; colorScheme: 'light' | 'dark'; onCorrectStatus: (id: string, status: AttendanceStatus) => void; disabled?: boolean }) {
   return (
     <select
       value={row.status}
       onChange={(e) => onCorrectStatus(row.id, e.target.value as AttendanceStatus)}
-      className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs text-ink-900"
+      disabled={disabled}
+      className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs text-ink-900 disabled:cursor-not-allowed disabled:opacity-50"
       style={{ colorScheme }}
     >
       {statusOptions.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
@@ -59,11 +60,18 @@ export default function BatchAttendanceAccordion({
   colorScheme,
   onCorrectStatus,
   isSingleStudent = false,
+  canEdit = true,
 }: {
   batch: string;
   rows: Row[];
   colorScheme: 'light' | 'dark';
   onCorrectStatus: (id: string, status: AttendanceStatus) => void;
+  /** Added in migration 0012 (coordinator permissions). Gates the status
+   * correction dropdown only — everything else on this accordion (viewing
+   * records, expanding months/days) stays available regardless, since
+   * this system gates writes, not read access. Defaults true so existing
+   * callers that don't pass it keep working exactly as before. */
+  canEdit?: boolean;
   /** When true (a specific student is filtered), clicking a month shows a
    * flat table of that whole month's records with Date + Day columns,
    * instead of drilling into individual days — day-by-day navigation isn't
@@ -149,7 +157,7 @@ export default function BatchAttendanceAccordion({
                               {r.corrected_by && <span className="ml-2 text-[10px] text-ink-300">edited</span>}
                             </td>
                             <td className="px-4 py-2.5">
-                              <StatusSelect row={r} colorScheme={colorScheme} onCorrectStatus={onCorrectStatus} />
+                              <StatusSelect row={r} colorScheme={colorScheme} onCorrectStatus={onCorrectStatus} disabled={!canEdit} />
                             </td>
                           </tr>
                         ))}
@@ -227,7 +235,7 @@ export default function BatchAttendanceAccordion({
                                           {r.corrected_by && <span className="ml-2 text-[10px] text-ink-300">edited</span>}
                                         </td>
                                         <td className="px-4 py-2.5">
-                                          <StatusSelect row={r} colorScheme={colorScheme} onCorrectStatus={onCorrectStatus} />
+                                          <StatusSelect row={r} colorScheme={colorScheme} onCorrectStatus={onCorrectStatus} disabled={!canEdit} />
                                         </td>
                                       </tr>
                                     ))}

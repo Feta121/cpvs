@@ -28,6 +28,7 @@ const CoordinatorDashboard = lazy(() => import('./pages/coordinator/CoordinatorD
 const CoordinatorStudents = lazy(() => import('./pages/coordinator/Students'));
 const CoordinatorHospitals = lazy(() => import('./pages/coordinator/Hospitals'));
 const CoordinatorRotations = lazy(() => import('./pages/coordinator/Rotations'));
+const Coordinators = lazy(() => import('./pages/coordinator/Coordinators'));
 const CoordinatorAttendance = lazy(() => import('./pages/coordinator/AttendanceManagement'));
 const CoordinatorAppeals = lazy(() => import('./pages/coordinator/Appeals'));
 const CoordinatorAnnouncements = lazy(() => import('./pages/coordinator/Announcements'));
@@ -161,7 +162,7 @@ export default function App() {
       <Route
         path="/coordinator/students"
         element={
-          <ProtectedRoute allow={['coordinator']}>
+          <ProtectedRoute allow={['coordinator']} requireAny={['can_create_students', 'can_edit_students', 'can_delete_students']}>
             <AppShell><Lazy><CoordinatorStudents /></Lazy></AppShell>
           </ProtectedRoute>
         }
@@ -169,7 +170,7 @@ export default function App() {
       <Route
         path="/coordinator/hospitals"
         element={
-          <ProtectedRoute allow={['coordinator']}>
+          <ProtectedRoute allow={['coordinator']} requireAny={['can_create_hospitals', 'can_edit_hospitals', 'can_delete_hospitals']}>
             <AppShell><Lazy><CoordinatorHospitals /></Lazy></AppShell>
           </ProtectedRoute>
         }
@@ -177,15 +178,27 @@ export default function App() {
       <Route
         path="/coordinator/rotations"
         element={
-          <ProtectedRoute allow={['coordinator']}>
+          <ProtectedRoute allow={['coordinator']} requireAny={['can_create_rotations', 'can_edit_rotations', 'can_delete_rotations']}>
             <AppShell><Lazy><CoordinatorRotations /></Lazy></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coordinator/coordinators"
+        element={
+          // No requireAny — every coordinator (regular or Super) can view
+          // this page per spec; the page itself gates the actions (add,
+          // edit permissions, activate/deactivate, delete, reset password)
+          // to Super Coordinators only.
+          <ProtectedRoute allow={['coordinator']}>
+            <AppShell><Lazy><Coordinators /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />
       <Route
         path="/coordinator/attendance"
         element={
-          <ProtectedRoute allow={['coordinator']}>
+          <ProtectedRoute allow={['coordinator']} requireAny={['can_manage_attendance']}>
             <AppShell><Lazy><CoordinatorAttendance /></Lazy></AppShell>
           </ProtectedRoute>
         }
@@ -193,7 +206,7 @@ export default function App() {
       <Route
         path="/coordinator/appeals"
         element={
-          <ProtectedRoute allow={['coordinator']}>
+          <ProtectedRoute allow={['coordinator']} requireAny={['can_review_appeals']}>
             <AppShell><Lazy><CoordinatorAppeals /></Lazy></AppShell>
           </ProtectedRoute>
         }
@@ -201,7 +214,7 @@ export default function App() {
       <Route
         path="/coordinator/announcements"
         element={
-          <ProtectedRoute allow={['coordinator']}>
+          <ProtectedRoute allow={['coordinator']} requireAny={['can_send_announcements']}>
             <AppShell><Lazy><CoordinatorAnnouncements /></Lazy></AppShell>
           </ProtectedRoute>
         }
@@ -209,7 +222,7 @@ export default function App() {
       <Route
         path="/coordinator/exceptions"
         element={
-          <ProtectedRoute allow={['coordinator']}>
+          <ProtectedRoute allow={['coordinator']} requireAny={['can_manage_schedules']}>
             <AppShell><Lazy><CoordinatorExceptions /></Lazy></AppShell>
           </ProtectedRoute>
         }

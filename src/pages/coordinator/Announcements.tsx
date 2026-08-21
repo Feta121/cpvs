@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Megaphone, Plus, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -10,6 +11,7 @@ import type { Announcement } from '../../types/database';
 
 export default function CoordinatorAnnouncements() {
   const { coordinator } = useAuth();
+  const { has } = usePermissions();
   const { showSuccess, showError } = useToast();
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,12 +104,14 @@ export default function CoordinatorAnnouncements() {
           <h1 className="font-display text-2xl font-semibold text-ink-900">Announcements</h1>
           <p className="mt-1 text-sm text-ink-500">Emergency announcements notify students immediately.</p>
         </div>
-        <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
-          <Plus size={16} /> New announcement
-        </button>
+        {has('can_send_announcements') && (
+          <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
+            <Plus size={16} /> New announcement
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && has('can_send_announcements') && (
         <form onSubmit={handleSubmit} className="surface-card space-y-4 p-6">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">Title</label>
@@ -153,14 +157,16 @@ export default function CoordinatorAnnouncements() {
                 <p className="mt-2 text-sm text-ink-700">{a.content}</p>
                 <p className="mt-2 text-xs text-ink-300">{new Date(a.created_at).toLocaleString()}</p>
               </div>
-              <button
-                onClick={() => handleDelete(a)}
-                disabled={deletingId === a.id}
-                title="Delete announcement"
-                className="shrink-0 rounded-lg border border-status-expired/30 p-1.5 text-status-expired hover:bg-status-expired/5"
-              >
-                {deletingId === a.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              </button>
+              {has('can_send_announcements') && (
+                <button
+                  onClick={() => handleDelete(a)}
+                  disabled={deletingId === a.id}
+                  title="Delete announcement"
+                  className="theme-danger-btn shrink-0 rounded-lg border border-status-expired/30 p-1.5 text-status-expired hover:bg-status-expired/5"
+                >
+                  {deletingId === a.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                </button>
+              )}
             </div>
           </div>
         ))}

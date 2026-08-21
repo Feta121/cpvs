@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useTheme, toNativeColorScheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
@@ -14,6 +15,7 @@ type Row = AttendanceRecord & { student: (Student & { profile: Profile | null })
 
 export default function CoordinatorAttendance() {
   const { coordinator } = useAuth();
+  const { has } = usePermissions();
   const { preference } = useTheme();
   const [rows, setRows] = useState<Row[]>([]);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
@@ -160,6 +162,7 @@ export default function CoordinatorAttendance() {
           colorScheme={toNativeColorScheme(preference)}
           onCorrectStatus={correctStatus}
           isSingleStudent={studentFilter !== 'all'}
+          canEdit={has('can_manage_attendance')}
         />
       ))}
     </div>

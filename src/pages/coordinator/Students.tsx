@@ -264,7 +264,7 @@ export default function CoordinatorStudents() {
         <div key={batch} className="space-y-3">
           <h2 className="font-display text-sm font-semibold text-ink-700">Batch {batch} <span className="font-normal text-ink-300">({rows.length})</span></h2>
           <div className="surface-card overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full whitespace-nowrap text-left text-sm">
               <thead className="border-b border-surface-line text-xs uppercase tracking-wide text-ink-300">
                 <tr>
                   <th className="px-5 py-3 font-medium">Name</th>

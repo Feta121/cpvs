@@ -134,7 +134,7 @@ export default function BatchAttendanceAccordion({
                     className="overflow-hidden"
                   >
                   <div className="overflow-x-auto border-l-2 border-clinical-200 border-t border-surface-line bg-surface-muted/40 pl-5">
-                    <table className="w-full text-left text-sm">
+                    <table className="w-full whitespace-nowrap text-left text-sm">
                       <thead className="border-b border-surface-line text-xs uppercase tracking-wide text-ink-300">
                         <tr>
                           <th className="px-4 py-2.5 font-medium">Date</th>
@@ -214,7 +214,7 @@ export default function BatchAttendanceAccordion({
                                 className="overflow-hidden"
                               >
                               <div className="overflow-x-auto ml-8 border-l-2 border-vital-200 border-t border-surface-line bg-surface pl-4">
-                                <table className="w-full text-left text-sm">
+                                <table className="w-full whitespace-nowrap text-left text-sm">
                                   <thead className="border-b border-surface-line text-xs uppercase tracking-wide text-ink-300">
                                     <tr>
                                       <th className="px-4 py-2.5 font-medium">Student</th>

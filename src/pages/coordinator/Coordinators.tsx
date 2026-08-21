@@ -99,7 +99,12 @@ export default function Coordinators() {
       showError(error);
       return;
     }
-    setIssuedCreds({ username: c.profile?.email ?? '', tempPassword: (data as any).tempPassword, loginEmail: c.profile?.email ?? '', forName: c.profile?.full_name ?? 'Coordinator' });
+    // CHANGED: was `c.profile?.email` (the coordinator's personal email)
+    // — that's what displayed the gmail address as if it were the login,
+    // even though the actual login (username@cpvs.com) still worked
+    // correctly under the hood. `c.login_email` (migration 0013) is the
+    // real, persisted login credential.
+    setIssuedCreds({ username: c.login_email, tempPassword: (data as any).tempPassword, loginEmail: c.login_email, forName: c.profile?.full_name ?? 'Coordinator' });
     showSuccess(`Password reset for ${c.profile?.full_name ?? 'coordinator'}.`);
   }
 
@@ -206,11 +211,12 @@ export default function Coordinators() {
       )}
 
       <div className="surface-card overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        <table className="w-full whitespace-nowrap text-left text-sm">
           <thead className="border-b border-surface-line text-xs uppercase tracking-wide text-ink-300">
             <tr>
               <th className="px-5 py-3 font-medium">Name</th>
               <th className="px-5 py-3 font-medium">Email</th>
+              <th className="px-5 py-3 font-medium">Username</th>
               <th className="px-5 py-3 font-medium">Department</th>
               <th className="px-5 py-3 font-medium">Role</th>
               <th className="px-5 py-3 font-medium">Status</th>
@@ -226,6 +232,7 @@ export default function Coordinators() {
                     {c.profile?.full_name ?? '(profile missing)'} {isSelf && <span className="text-ink-300">(you)</span>}
                   </td>
                   <td className="px-5 py-3 text-ink-500">{c.profile?.email ?? '—'}</td>
+                  <td className="px-5 py-3 text-ink-500">{c.login_email}</td>
                   <td className="px-5 py-3 text-ink-500">{c.department ?? '—'}</td>
                   <td className="px-5 py-3">
                     {c.is_super_coordinator ? (

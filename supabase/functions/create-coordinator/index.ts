@@ -129,6 +129,7 @@ Deno.serve(async (req) => {
     const { error: coordinatorError } = await admin.from('coordinators').insert({
       id: createdUserId,
       department: department?.trim() || null,
+      login_email: loginEmail,
       is_active: true,
       is_super_coordinator: perm('is_super_coordinator'),
       can_create_students: perm('can_create_students'),

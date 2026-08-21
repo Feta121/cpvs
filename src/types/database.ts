@@ -46,6 +46,10 @@ export interface Coordinator {
   id: string;
   department: string | null;
   created_at: string;
+  /** Added in migration 0013. The actual CPVS login credential
+   * (`<firstname><random>@cpvs.com`) — distinct from profiles.email,
+   * which is the coordinator's own personal email. */
+  login_email: string;
   /** Added in migration 0012. Bypasses every can_* permission below —
    * only a Super Coordinator can manage other coordinator accounts
    * (create/edit/activate/deactivate/reset password/delete) and change

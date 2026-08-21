@@ -298,7 +298,7 @@ export default function CoordinatorStudents() {
                       {s.late_attendance_concern ? <Badge tone="verylate">Late concern</Badge> : <span className="text-ink-300">—</span>}
                     </td>
                     <td className="px-5 py-3">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-nowrap items-center gap-2">
                         <select
                           value={s.status}
                           onChange={(e) => updateStatus(s.id, e.target.value as Student['status'])}

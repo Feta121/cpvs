@@ -251,7 +251,7 @@ export default function Coordinators() {
                       {isSelf ? (
                         <span className="text-xs text-ink-300">Manage your own account from Settings</span>
                       ) : (
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-nowrap items-center gap-2">
                           <button
                             onClick={() => setPermissionsTarget(c)}
                             title="Edit permissions"

@@ -30,6 +30,7 @@ export default function Coordinators() {
 
   const [permissionsTarget, setPermissionsTarget] = useState<CoordinatorRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CoordinatorRow | null>(null);
+  const [pendingReset, setPendingReset] = useState<CoordinatorRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [resettingId, setResettingId] = useState<string | null>(null);
 
@@ -91,6 +92,7 @@ export default function Coordinators() {
   }
 
   async function handleResetPassword(c: CoordinatorRow) {
+    setPendingReset(null);
     setResettingId(c.id);
     const { data, error } = await invokeEdgeFunction('reset-coordinator-password', { coordinatorId: c.id });
     setResettingId(null);
@@ -258,7 +260,7 @@ export default function Coordinators() {
                             {c.is_active ? <ShieldCheck size={14} /> : <ShieldOff size={14} />}
                           </button>
                           <button
-                            onClick={() => handleResetPassword(c)}
+                            onClick={() => setPendingReset(c)}
                             disabled={resettingId === c.id}
                             title="Reset password"
                             className="rounded-lg border border-surface-line p-1.5 text-ink-500 hover:bg-surface-muted"
@@ -302,6 +304,16 @@ export default function Coordinators() {
         message="This PERMANENTLY deletes their login and coordinator record. This cannot be undone."
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={!!pendingReset}
+        title={`Reset password for ${pendingReset?.profile?.full_name ?? 'this coordinator'}?`}
+        message={`This immediately invalidates their current password — they will not be able to log in until you relay the new temporary password shown after this. Username: ${pendingReset?.login_email ?? ''}`}
+        confirmLabel="Reset password"
+        confirmText="RESET"
+        onConfirm={() => pendingReset && handleResetPassword(pendingReset)}
+        onCancel={() => setPendingReset(null)}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import { fetchProfilesById } from '../../utils/fetchProfiles';
 import { exportToCsv } from '../../utils/exportCsv';
 import BatchAttendanceAccordion from '../../components/coordinator/BatchAttendanceAccordion';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
+import Select from '../../components/ui/Select';
 import type { AttendanceRecord, Hospital, Student, Profile, AttendanceStatus } from '../../types/database';
 
 type Row = AttendanceRecord & { student: (Student & { profile: Profile | null }) | null; hospital: Hospital | null };
@@ -136,18 +137,18 @@ export default function CoordinatorAttendance() {
       )}
 
       <div className="flex flex-wrap gap-3">
-        <select value={hospitalFilter} onChange={(e) => setHospitalFilter(e.target.value)} className="input-field w-full sm:w-56">
+        <Select value={hospitalFilter} onChange={setHospitalFilter} className="w-full sm:w-56">
           <option value="all">All hospitals</option>
           {hospitals.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-        </select>
-        <select value={studentFilter} onChange={(e) => setStudentFilter(e.target.value)} className="input-field w-full sm:w-56">
+        </Select>
+        <Select value={studentFilter} onChange={setStudentFilter} className="w-full sm:w-56">
           <option value="all">All students</option>
           {students.map((s) => <option key={s.id} value={s.id}>{s.profile?.full_name ?? '(profile missing)'}</option>)}
-        </select>
-        <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="input-field w-full sm:w-56">
+        </Select>
+        <Select value={batchFilter} onChange={setBatchFilter} className="w-full sm:w-56">
           <option value="all">All batches</option>
           {batches.map((b) => <option key={b} value={b}>Batch {b}</option>)}
-        </select>
+        </Select>
       </div>
 
       {groupedByBatch.length === 0 && (

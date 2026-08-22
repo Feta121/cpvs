@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, CalendarDays } from 'lucide-react';
 import { format } from 'date-fns';
 import Badge from '../ui/Badge';
+import Select from '../ui/Select';
 import type { AttendanceRecord, Hospital, Student, Profile, AttendanceStatus } from '../../types/database';
 
 type Row = AttendanceRecord & { student: (Student & { profile: Profile | null }) | null; hospital: Hospital | null };
@@ -40,17 +41,11 @@ function groupByDay(rows: Row[]): [string, Row[]][] {
   return Array.from(groups.entries()).sort(([a], [b]) => b.localeCompare(a));
 }
 
-function StatusSelect({ row, colorScheme, onCorrectStatus, disabled }: { row: Row; colorScheme: 'light' | 'dark'; onCorrectStatus: (id: string, status: AttendanceStatus) => void; disabled?: boolean }) {
+function StatusSelect({ row, onCorrectStatus, disabled }: { row: Row; colorScheme: 'light' | 'dark'; onCorrectStatus: (id: string, status: AttendanceStatus) => void; disabled?: boolean }) {
   return (
-    <select
-      value={row.status}
-      onChange={(e) => onCorrectStatus(row.id, e.target.value as AttendanceStatus)}
-      disabled={disabled}
-      className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs text-ink-900 disabled:cursor-not-allowed disabled:opacity-50"
-      style={{ colorScheme }}
-    >
+    <Select value={row.status} onChange={(v) => onCorrectStatus(row.id, v as AttendanceStatus)} disabled={disabled} compact>
       {statusOptions.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-    </select>
+    </Select>
   );
 }
 

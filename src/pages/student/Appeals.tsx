@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import Badge from '../../components/ui/Badge';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
+import Select from '../../components/ui/Select';
 import type { Appeal, AttendanceRecord } from '../../types/database';
 
 export default function StudentAppeals() {
@@ -103,11 +104,9 @@ export default function StudentAppeals() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-ink-700">Absence date</label>
-                <select
-                  className="input-field"
+                <Select
                   value={selectedAttendance}
-                  onChange={(e) => setSelectedAttendance(e.target.value)}
-                  required
+                  onChange={setSelectedAttendance}
                 >
                   <option value="">Select an absence…</option>
                   {absences.map((a) => (
@@ -115,7 +114,7 @@ export default function StudentAppeals() {
                       {new Date(a.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-ink-700">Reason</label>

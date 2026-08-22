@@ -6,6 +6,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import Badge from '../../components/ui/Badge';
+import Select from '../../components/ui/Select';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { PracticeException, SpecialPracticeDay, Hospital, Student, Profile } from '../../types/database';
@@ -218,10 +219,10 @@ export default function CoordinatorExceptions() {
           <form onSubmit={handleExceptionSubmit} className="surface-card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Hospital (optional — leave blank for all)</label>
-              <select className="input-field" value={exceptionForm.hospital_id} onChange={(e) => setExceptionForm({ ...exceptionForm, hospital_id: e.target.value })}>
+              <Select value={exceptionForm.hospital_id} onChange={(v) => setExceptionForm({ ...exceptionForm, hospital_id: v })}>
                 <option value="">All hospitals</option>
                 {hospitals.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Date</label>
@@ -229,27 +230,27 @@ export default function CoordinatorExceptions() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Batch (optional — leave blank for all)</label>
-              <select className="input-field" value={exceptionForm.batch} onChange={(e) => setExceptionForm({ ...exceptionForm, batch: e.target.value, student_id: '' })}>
+              <Select value={exceptionForm.batch} onChange={(v) => setExceptionForm({ ...exceptionForm, batch: v, student_id: '' })}>
                 <option value="">All batches</option>
                 {batches.map((b) => <option key={b} value={b}>Batch {b}</option>)}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Student (optional — leave blank for all)</label>
-              <select className="input-field" value={exceptionForm.student_id} onChange={(e) => setExceptionForm({ ...exceptionForm, student_id: e.target.value })}>
-                <option value="">All students{exceptionForm.batch ? ` in batch ${exceptionForm.batch}` : ''}</option>
+              <Select value={exceptionForm.student_id} onChange={(v) => setExceptionForm({ ...exceptionForm, student_id: v })}>
+                <option value="">{`All students${exceptionForm.batch ? ` in batch ${exceptionForm.batch}` : ''}`}</option>
                 {students
                   .filter((s) => !exceptionForm.batch || s.batch === exceptionForm.batch)
                   .map((s) => <option key={s.id} value={s.id}>{s.profile?.full_name ?? '(profile missing)'}</option>)}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Type</label>
-              <select className="input-field" value={exceptionForm.type} onChange={(e) => setExceptionForm({ ...exceptionForm, type: e.target.value as any })}>
+              <Select value={exceptionForm.type} onChange={(v) => setExceptionForm({ ...exceptionForm, type: v as any })}>
                 <option value="holiday">Holiday</option>
                 <option value="closure">Hospital closure</option>
                 <option value="cancelled">Cancelled clinical day</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Reason (optional)</label>
@@ -316,10 +317,10 @@ export default function CoordinatorExceptions() {
           <form onSubmit={handleSpecialDaySubmit} className="surface-card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Hospital (optional — leave blank for all)</label>
-              <select className="input-field" value={specialDayForm.hospital_id} onChange={(e) => setSpecialDayForm({ ...specialDayForm, hospital_id: e.target.value })}>
+              <Select value={specialDayForm.hospital_id} onChange={(v) => setSpecialDayForm({ ...specialDayForm, hospital_id: v })}>
                 <option value="">All hospitals</option>
                 {hospitals.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Date</label>
@@ -327,19 +328,19 @@ export default function CoordinatorExceptions() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Batch (optional — leave blank for all)</label>
-              <select className="input-field" value={specialDayForm.batch} onChange={(e) => setSpecialDayForm({ ...specialDayForm, batch: e.target.value, student_id: '' })}>
+              <Select value={specialDayForm.batch} onChange={(v) => setSpecialDayForm({ ...specialDayForm, batch: v, student_id: '' })}>
                 <option value="">All batches</option>
                 {batches.map((b) => <option key={b} value={b}>Batch {b}</option>)}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Student (optional — leave blank for all)</label>
-              <select className="input-field" value={specialDayForm.student_id} onChange={(e) => setSpecialDayForm({ ...specialDayForm, student_id: e.target.value })}>
-                <option value="">All students{specialDayForm.batch ? ` in batch ${specialDayForm.batch}` : ''}</option>
+              <Select value={specialDayForm.student_id} onChange={(v) => setSpecialDayForm({ ...specialDayForm, student_id: v })}>
+                <option value="">{`All students${specialDayForm.batch ? ` in batch ${specialDayForm.batch}` : ''}`}</option>
                 {students
                   .filter((s) => !specialDayForm.batch || s.batch === specialDayForm.batch)
                   .map((s) => <option key={s.id} value={s.id}>{s.profile?.full_name ?? '(profile missing)'}</option>)}
-              </select>
+              </Select>
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Reason (optional)</label>

@@ -7,6 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
+import Select from '../../components/ui/Select';
 import type { Announcement } from '../../types/database';
 
 export default function CoordinatorAnnouncements() {
@@ -124,10 +125,10 @@ export default function CoordinatorAnnouncements() {
           <div className="flex flex-wrap gap-4">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Type</label>
-              <select className="input-field" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as any })}>
+              <Select value={form.type} onChange={(v) => setForm({ ...form, type: v as any })} className="w-40">
                 <option value="normal">Normal</option>
                 <option value="emergency">Emergency</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Target batch (optional)</label>

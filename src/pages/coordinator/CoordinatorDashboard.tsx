@@ -10,6 +10,7 @@ import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import StatCard from '../../components/ui/StatCard';
 import DashboardBanner from '../../components/ui/DashboardBanner';
 import LiveClock from '../../components/ui/LiveClock';
+import Select from '../../components/ui/Select';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import AttendanceTrendChart, { TrendPoint } from '../../components/dashboard/AttendanceTrendChart';
 import HospitalComplianceBars, { HospitalComplianceRow } from '../../components/dashboard/HospitalComplianceBars';
@@ -396,12 +397,12 @@ export default function CoordinatorDashboard() {
               </button>
             </div>
           )}
-          <select value={batch} onChange={(e) => setBatch(e.target.value)} className="input-field w-full sm:w-56">
+          <Select value={batch} onChange={setBatch} className="w-full sm:w-56">
             <option value="all">All batches</option>
             {batches.map((b) => (
               <option key={b} value={b}>{b}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 

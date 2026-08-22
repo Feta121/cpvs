@@ -9,6 +9,7 @@ import { fetchProfilesById } from '../../utils/fetchProfiles';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
+import Select from '../../components/ui/Select';
 import type { Hospital, Student, Rotation, Profile } from '../../types/database';
 
 type RotationRow = Rotation & { student: (Student & { profile: Profile | null }) | null; hospital: Hospital | null };
@@ -77,6 +78,20 @@ export default function CoordinatorRotations() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // The Student/Hospital fields below are now the themed <Select>
+    // (native <select required> can't render a themed dropdown panel —
+    // see Select.tsx), which doesn't get native HTML5 required-field
+    // validation for free. Explicit checks here replace what `required`
+    // used to guarantee.
+    if (!form.student_id) {
+      showError('Please select a student.');
+      return;
+    }
+    if (!form.hospital_id) {
+      showError('Please select a hospital.');
+      return;
+    }
 
     // Cancel-on-reassign: if this student already has an active rotation
     // elsewhere, confirm with the coordinator before cancelling it — a
@@ -153,10 +168,10 @@ export default function CoordinatorRotations() {
           <p className="mt-1 text-sm text-ink-500">Assign students to hospitals for a clinical rotation period.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="input-field w-full sm:w-56">
+          <Select value={batchFilter} onChange={setBatchFilter} className="w-full sm:w-56">
             <option value="all">All batches</option>
             {batches.map((b) => <option key={b} value={b}>Batch {b}</option>)}
-          </select>
+          </Select>
           {has('can_create_rotations') && (
             <button onClick={() => setShowForm((s) => !s)} className="btn-primary">
               <Plus size={16} /> Assign rotation
@@ -169,17 +184,17 @@ export default function CoordinatorRotations() {
         <form onSubmit={handleSubmit} className="surface-card grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">Student</label>
-            <select required className="input-field" value={form.student_id} onChange={(e) => setForm({ ...form, student_id: e.target.value })}>
+            <Select value={form.student_id} onChange={(v) => setForm({ ...form, student_id: v })} placeholder="Select student…">
               <option value="">Select student…</option>
               {students.map((s) => <option key={s.id} value={s.id}>{s.profile?.full_name ?? '(profile missing)'} ({s.student_id})</option>)}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">Hospital</label>
-            <select required className="input-field" value={form.hospital_id} onChange={(e) => setForm({ ...form, hospital_id: e.target.value })}>
+            <Select value={form.hospital_id} onChange={(v) => setForm({ ...form, hospital_id: v })} placeholder="Select hospital…">
               <option value="">Select hospital…</option>
               {hospitals.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">Start date</label>

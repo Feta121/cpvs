@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { UserPlus, Loader2, Copy, Check, X, Trash2, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../context/ToastContext';
-import { useTheme, toNativeColorScheme } from '../../theme/ThemeProvider';
 import { groupByBatch } from '../../utils/grouping';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import { exportToCsv } from '../../utils/exportCsv';
@@ -10,6 +9,7 @@ import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import StudentProfileModal from '../../components/coordinator/StudentProfileModal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Badge from '../../components/ui/Badge';
+import Select from '../../components/ui/Select';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { Profile, Student } from '../../types/database';
 
@@ -29,7 +29,6 @@ const emptyForm = {
 
 export default function CoordinatorStudents() {
   const { showSuccess, showError } = useToast();
-  const { preference } = useTheme();
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -168,10 +167,10 @@ export default function CoordinatorStudents() {
           <p className="mt-1 text-sm text-ink-500">Manage student accounts and clinical status.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="input-field w-full sm:w-56">
+          <Select value={batchFilter} onChange={setBatchFilter} className="w-full sm:w-56">
             <option value="all">All batches</option>
             {batches.map((b) => <option key={b} value={b}>Batch {b}</option>)}
-          </select>
+          </Select>
           <button onClick={handleExport} disabled={visibleStudents.length === 0} className="btn-secondary">
             <Download size={16} /> Export CSV
           </button>
@@ -234,9 +233,9 @@ export default function CoordinatorStudents() {
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">Year</label>
-            <select className="input-field" value={form.year} onChange={(e) => setForm({ ...form, year: Number(e.target.value) })}>
+            <Select value={String(form.year)} onChange={(v) => setForm({ ...form, year: Number(v) })}>
               {[1, 2, 3, 4, 5, 6].map((y) => <option key={y} value={y}>Year {y}</option>)}
-            </select>
+            </Select>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">Batch</label>
@@ -299,16 +298,15 @@ export default function CoordinatorStudents() {
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-nowrap items-center gap-2">
-                        <select
+                        <Select
                           value={s.status}
-                          onChange={(e) => updateStatus(s.id, e.target.value as Student['status'])}
-                          className="rounded-lg border border-surface-line bg-surface px-2 py-1 text-xs text-ink-900"
-                          style={{ colorScheme: toNativeColorScheme(preference) }}
+                          onChange={(v) => updateStatus(s.id, v as Student['status'])}
+                          compact
                         >
                           <option value="active">Active</option>
                           <option value="completed">Completed Practice</option>
                           <option value="past">Past Student</option>
-                        </select>
+                        </Select>
                         <button
                           onClick={() => handleDelete(s)}
                           disabled={deletingId === s.id}

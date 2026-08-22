@@ -373,12 +373,25 @@ export default function CoordinatorDashboard() {
             // once there's room for everything (including the batch
             // select) to sit in one line like before.
             <div className="grid grid-cols-2 gap-2 sm:flex">
-              <button onClick={runAbsenceCheck} disabled={runningCheck} className="btn-secondary" title="Manually mark absent any student past their hospital's check-in cutoff with no record today">
-                {runningCheck ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-                Check for missed check-ins
+              <button
+                onClick={runAbsenceCheck}
+                disabled={runningCheck}
+                className="btn-secondary !gap-1.5 !px-2.5 !py-2 text-xs sm:!gap-2 sm:!px-4 sm:!py-2.5 sm:text-sm"
+                title="Manually mark absent any student past their hospital's check-in cutoff with no record today"
+              >
+                {runningCheck ? <Loader2 size={14} className="shrink-0 animate-spin" /> : <RefreshCw size={14} className="shrink-0" />}
+                {/* Shorter label on mobile so it fits one line at half
+                    width; full label returns once there's room at sm:. */}
+                <span className="sm:hidden">Missed check-ins</span>
+                <span className="hidden sm:inline">Check for missed check-ins</span>
               </button>
-              <button onClick={runBackfill} disabled={runningBackfill} className="btn-secondary" title="Checks every day since the last backfill (or up to 60 days back) through today, marking any missed check-ins absent">
-                {runningBackfill ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+              <button
+                onClick={runBackfill}
+                disabled={runningBackfill}
+                className="btn-secondary !gap-1.5 !px-2.5 !py-2 text-xs sm:!gap-2 sm:!px-4 sm:!py-2.5 sm:text-sm"
+                title="Checks every day since the last backfill (or up to 60 days back) through today, marking any missed check-ins absent"
+              >
+                {runningBackfill ? <Loader2 size={14} className="shrink-0 animate-spin" /> : <RefreshCw size={14} className="shrink-0" />}
                 Backfill
               </button>
             </div>

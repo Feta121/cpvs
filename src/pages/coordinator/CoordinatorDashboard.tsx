@@ -365,9 +365,14 @@ export default function CoordinatorDashboard() {
           <h1 className="font-display text-2xl font-semibold text-ink-900">Coordinator overview</h1>
           <p className="mt-1 text-sm text-ink-500">Today's snapshot across your assigned students.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {has('can_manage_attendance') && (
-            <>
+            // grid-cols-2 keeps both buttons side by side even on a
+            // narrow phone screen instead of each stacking onto its own
+            // full-width row; sm:flex switches back to natural sizing
+            // once there's room for everything (including the batch
+            // select) to sit in one line like before.
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               <button onClick={runAbsenceCheck} disabled={runningCheck} className="btn-secondary" title="Manually mark absent any student past their hospital's check-in cutoff with no record today">
                 {runningCheck ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
                 Check for missed check-ins
@@ -376,7 +381,7 @@ export default function CoordinatorDashboard() {
                 {runningBackfill ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
                 Backfill
               </button>
-            </>
+            </div>
           )}
           <select value={batch} onChange={(e) => setBatch(e.target.value)} className="input-field w-full sm:w-56">
             <option value="all">All batches</option>

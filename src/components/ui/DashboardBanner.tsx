@@ -1,47 +1,31 @@
-import { Activity } from 'lucide-react';
+import { useTheme } from '../../theme/ThemeProvider';
 
 /**
- * Compact dashboard header strip — replaces the old full-height hero
- * banner (which used a 2.4:1 pre-rendered image per theme) with a much
- * shorter, coded banner (~40% of the previous height) so it reads as a
- * quick identity strip rather than a hero graphic eating the top of the
- * dashboard.
+ * Dashboard header strip — logo + title only, per request (the previous
+ * version's tagline, divider, and "Monitoring active" indicator were all
+ * removed, not just hidden on mobile — LiveClock directly above already
+ * covers date/time, so this stays minimal).
  *
- * Uses the ORIGINAL multi-color CPVS logo (navy/teal) directly, not the
- * theme-tinted <Wordmark> used in the sidebar — that's intentional per
- * request: brand identity here stays constant across all three themes,
- * unlike the rest of the chrome.
- *
- * The right-hand "Live monitoring" indicator ties back to something real
- * about this specific app (the mark-absences cron job actually does run
- * continuously in the background) rather than being a decorative filler
- * stat — LiveClock already covers date/time immediately above this, so
- * repeating that here would just be redundant.
+ * Three separate logo images, one per theme, rather than a single CSS
+ * recolor: Light uses the original multi-color artwork unchanged; Aether
+ * needs the whole mark in one flat lime (a uniform recolor, same idea as
+ * the sidebar's <Wordmark>); Dark needs a *partial* recolor — only the
+ * navy letters (C, S) turn white, the teal ones (P, the checkmark) stay
+ * teal. That last one specifically can't be done with a CSS mask (a mask
+ * only encodes alpha, it has no way to single out "just the navy pixels"
+ * within one image) — it had to be pre-rendered pixel-by-pixel instead,
+ * see wordmark-dark.png / wordmark-aether.png.
  */
 export default function DashboardBanner() {
+  const { preference } = useTheme();
+  const src = preference === 'dark' ? '/wordmark-dark.png' : preference === 'aether' ? '/wordmark-aether.png' : '/wordmark.png';
+
   return (
-    <div className="surface-card relative flex items-center gap-4 overflow-hidden px-5 py-4 sm:gap-5 sm:px-6">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-clinical-50/60 via-transparent to-vital-50/40" />
-
-      <img src="/wordmark.png" alt="CPVS" className="relative z-10 h-8 w-auto shrink-0 sm:h-9" />
-
-      <div className="relative z-10 h-8 w-px shrink-0 bg-surface-line sm:h-9" />
-
-      <div className="relative z-10 min-w-0 flex-1">
-        <p className="truncate font-display text-sm font-semibold text-ink-900 sm:text-base">
-          Clinical Practice Verification System
-        </p>
-        <p className="truncate text-xs text-ink-500">Secure · Accurate · Real-Time Clinical Attendance</p>
-      </div>
-
-      <div className="relative z-10 hidden shrink-0 items-center gap-2 rounded-full border border-surface-line bg-surface px-3 py-1.5 sm:flex">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-vital-500 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-vital-600" />
-        </span>
-        <Activity size={13} className="text-vital-600" />
-        <span className="text-xs font-medium text-ink-700">Monitoring active</span>
-      </div>
+    <div className="surface-card flex items-center gap-3 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
+      <img src={src} alt="CPVS" className="h-7 w-auto shrink-0 sm:h-9" />
+      <p className="font-display text-sm font-semibold leading-tight text-ink-900 sm:text-base">
+        Clinical Practice Verification System
+      </p>
     </div>
   );
 }

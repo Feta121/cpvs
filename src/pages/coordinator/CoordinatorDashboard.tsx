@@ -58,20 +58,47 @@ export default function CoordinatorDashboard() {
     setLoading(true);
     const today = new Date().toISOString().slice(0, 10);
 
-    const { data: statusRow } = await supabase.from('system_status').select('*').eq('id', true).maybeSingle();
-    setLastRun({ at: (statusRow as any)?.last_mark_absences_run ?? null, count: (statusRow as any)?.last_mark_absences_marked_count ?? null });
-
-    const { data: studentBatches } = await supabase.from('students').select('batch');
-    setBatches(Array.from(new Set((studentBatches ?? []).map((s) => s.batch))));
-
+    // CHANGED: was 10 sequential `await`s in a row — each one is its own
+    // network round-trip to Supabase, and none of them actually needed
+    // another one's result to run (the only real dependencies —
+    // `filtered`/`scopedActiveRotations` below — are just JS filtering on
+    // data already fetched, not additional queries). Firing them together
+    // means total wait time is roughly the slowest single query instead of
+    // the sum of all ten.
     let studentQuery = supabase.from('students').select('id', { count: 'exact' });
     if (batch !== 'all') studentQuery = studentQuery.eq('batch', batch);
-    const { count: total } = await studentQuery;
 
-    const { data: todayAttendance } = await supabase.from('attendance').select('status, student_id').eq('date', today);
+    let activeStudentQuery = supabase.from('students').select('id', { count: 'exact', head: true }).eq('status', 'active');
+    if (batch !== 'all') activeStudentQuery = activeStudentQuery.eq('batch', batch);
 
-    const batchStudentIds =
-      batch === 'all' ? null : new Set((await supabase.from('students').select('id').eq('batch', batch)).data?.map((s) => s.id));
+    const [
+      { data: statusRow },
+      { data: studentBatches },
+      { count: total },
+      { data: todayAttendance },
+      batchStudentIdsResult,
+      { count: grandTotalStudents },
+      { count: activeStudents },
+      { count: totalHospitals },
+      { count: activeHospitals },
+      { data: activeRotationRows },
+    ] = await Promise.all([
+      supabase.from('system_status').select('*').eq('id', true).maybeSingle(),
+      supabase.from('students').select('batch'),
+      studentQuery,
+      supabase.from('attendance').select('status, student_id').eq('date', today),
+      batch === 'all' ? Promise.resolve({ data: null }) : supabase.from('students').select('id').eq('batch', batch),
+      supabase.from('students').select('id', { count: 'exact', head: true }),
+      activeStudentQuery,
+      supabase.from('hospitals').select('id', { count: 'exact', head: true }),
+      supabase.from('hospitals').select('id', { count: 'exact', head: true }).eq('is_active', true),
+      supabase.from('rotations').select('student_id').eq('status', 'active'),
+    ]);
+
+    setLastRun({ at: (statusRow as any)?.last_mark_absences_run ?? null, count: (statusRow as any)?.last_mark_absences_marked_count ?? null });
+    setBatches(Array.from(new Set((studentBatches ?? []).map((s) => s.batch))));
+
+    const batchStudentIds = batch === 'all' ? null : new Set(batchStudentIdsResult.data?.map((s: { id: string }) => s.id));
 
     const filtered = (todayAttendance ?? []).filter((a) => !batchStudentIds || batchStudentIds.has(a.student_id));
     // "Present today" counts anyone who showed up at all — including late and
@@ -91,21 +118,6 @@ export default function CoordinatorDashboard() {
     // it's the denominator for Assigned-to-rotation and Active students
     // (both of those numerators are batch-scoped too, so their denominator
     // should match). It isn't shown as its own card by itself. ----
-    const { count: grandTotalStudents } = await supabase.from('students').select('id', { count: 'exact', head: true });
-
-    let activeStudentQuery = supabase.from('students').select('id', { count: 'exact', head: true }).eq('status', 'active');
-    if (batch !== 'all') activeStudentQuery = activeStudentQuery.eq('batch', batch);
-    const { count: activeStudents } = await activeStudentQuery;
-
-    // Hospitals aren't tied to a batch at all, so these two are always
-    // program-wide regardless of the batch dropdown.
-    const { count: totalHospitals } = await supabase.from('hospitals').select('id', { count: 'exact', head: true });
-    const { count: activeHospitals } = await supabase
-      .from('hospitals')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_active', true);
-
-    const { data: activeRotationRows } = await supabase.from('rotations').select('student_id').eq('status', 'active');
     const scopedActiveRotations = (activeRotationRows ?? []).filter((r) => !batchStudentIds || batchStudentIds.has(r.student_id));
 
     setPipeline({

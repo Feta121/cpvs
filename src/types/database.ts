@@ -40,6 +40,10 @@ export interface Student {
   status: StudentStatus;
   late_attendance_concern: boolean;
   created_at: string;
+  verification_method: 'webauthn' | 'selfie' | null;
+  reference_face_descriptor: number[] | null;
+  reference_selfie_url: string | null;
+  biometric_enrolled_at: string | null;
 }
 
 export interface Coordinator {

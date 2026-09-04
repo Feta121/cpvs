@@ -34,6 +34,7 @@ const CoordinatorAppeals = lazy(() => import('./pages/coordinator/Appeals'));
 const CoordinatorAnnouncements = lazy(() => import('./pages/coordinator/Announcements'));
 const CoordinatorExceptions = lazy(() => import('./pages/coordinator/Exceptions'));
 const CoordinatorNotifications = lazy(() => import('./pages/coordinator/Notifications'));
+const BiometricEnrollment = lazy(() => import('./pages/student/BiometricEnrollment'));
 // Shared between both roles (like ChangePassword above), just routed
 // under each role's own path so it fits inside the sectioned coordinator
 // sidebar / flat student sidebar as an ordinary nav item.
@@ -234,6 +235,10 @@ export default function App() {
             <AppShell><Lazy><CoordinatorNotifications /></Lazy></AppShell>
           </ProtectedRoute>
         }
+      />
+      <Route
+        path="/student/enroll-biometric"
+        element={<BiometricEnrollment />}
       />
       <Route
         path="/coordinator/settings"

@@ -21,7 +21,7 @@ export default function ProtectedRoute({
    * student-only routes. */
   requireAny?: PermissionKey[];
 }) {
-  const { loading, profile, coordinator, authError, refreshProfile, signOut } = useAuth();
+  const { loading, profile, coordinator, student, authError, refreshProfile, signOut } = useAuth();
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
   if (loading) return <FullScreenLoader label="Checking your session…" />;
@@ -96,6 +96,20 @@ export default function ProtectedRoute({
   if (requireAny && profile.role === 'coordinator' && coordinator) {
     const authorized = coordinator.is_super_coordinator || requireAny.some((key) => coordinator[key]);
     if (!authorized) return <Navigate to="/coordinator" replace />;
+  }
+
+  // Added in migration 0014 (biometric check-in verification). A student
+  // who hasn't completed device/selfie enrollment yet is sent to do that
+  // first — required from day one, not an optional add-on — before they
+  // can reach anything else, including the dashboard. The enrollment page
+  // itself is exempted below so this doesn't redirect-loop against itself.
+  if (
+    profile.role === 'student' &&
+    student &&
+    !student.biometric_enrolled_at &&
+    window.location.pathname !== '/student/enroll-biometric'
+  ) {
+    return <Navigate to="/student/enroll-biometric" replace />;
   }
 
   return <>{children}</>;

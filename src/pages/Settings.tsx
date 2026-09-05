@@ -8,18 +8,35 @@ import { useInstallPrompt, getInstallInstructions } from '../hooks/useInstallPro
 import { getNotificationPermission, requestNotificationPermission } from '../utils/pushNotifications';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 
-const THEME_OPTIONS: { value: ThemePreference; icon: LucideIcon; label: string; blurb: string }[] = [
-  { value: 'light', icon: Sun, label: 'Light', blurb: 'Bright, high-contrast' },
-  { value: 'dark', icon: Moon, label: 'Dark', blurb: 'Easier on the eyes at night' },
-  { value: 'aether', icon: Sparkles, label: 'Aether', blurb: 'Dark with a lime accent' },
+/** `swatch` is a fixed two-colour preview of each theme's surface + accent.
+ * It's deliberately hardcoded rather than read from CSS variables: the point
+ * is to show what the OTHER themes look like while you're still in the
+ * current one, and the variables only ever hold the active theme's values. */
+const THEME_OPTIONS: { value: ThemePreference; icon: LucideIcon; label: string; blurb: string; swatch: [string, string] }[] = [
+  { value: 'light', icon: Sun, label: 'Light', blurb: 'Bright, high-contrast', swatch: ['#f7f9fc', '#1f6dfa'] },
+  { value: 'dark', icon: Moon, label: 'Dark', blurb: 'Easier on the eyes at night', swatch: ['#111317', '#4d8dff'] },
+  { value: 'aether', icon: Sparkles, label: 'Aether', blurb: 'Dark with a lime accent', swatch: ['#16181a', '#adff2f'] },
 ];
 
-function SettingsSection({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+/** Purely presentational wrapper. `icon` is optional so the shape of every
+ * existing call site stays valid — it only adds a tinted tile beside the
+ * heading when one is passed. */
+function SettingsSection({ title, description, icon: Icon, children }: { title: string; description?: string; icon?: LucideIcon; children: React.ReactNode }) {
   return (
-    <div className="surface-card p-6">
-      <h2 className="font-display text-base font-semibold text-ink-900">{title}</h2>
-      {description && <p className="mt-0.5 text-sm text-ink-500">{description}</p>}
-      <div className="mt-4">{children}</div>
+    <div className="surface-card relative overflow-hidden p-6">
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-clinical-500 via-vital-500 to-transparent" />
+      <div className="flex items-start gap-3">
+        {Icon && (
+          <span className="icon-tile mt-0.5 h-9 w-9 shrink-0 rounded-xl">
+            <Icon size={16} strokeWidth={2.25} />
+          </span>
+        )}
+        <div className="min-w-0">
+          <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">{title}</h2>
+          {description && <p className="mt-0.5 text-sm leading-relaxed text-ink-500">{description}</p>}
+        </div>
+      </div>
+      <div className="mt-5">{children}</div>
     </div>
   );
 }
@@ -58,14 +75,14 @@ function InstallOrUpdateRow() {
 
   if (isStandalone) {
     return (
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="inset-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
-            <CheckCircle2 size={18} />
+          <div className="icon-tile-accent h-10 w-10 shrink-0 rounded-xl">
+            <CheckCircle2 size={18} strokeWidth={2.25} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-ink-900">Running as an installed app</p>
-            <p className="text-sm text-ink-500">Force a refresh if you suspect you're on an older version.</p>
+            <p className="text-sm font-semibold text-ink-900">Running as an installed app</p>
+            <p className="text-sm leading-relaxed text-ink-500">Force a refresh if you suspect you're on an older version.</p>
           </div>
         </div>
         <button onClick={handleCheckForUpdates} disabled={checking} className="btn-secondary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto">
@@ -78,14 +95,14 @@ function InstallOrUpdateRow() {
 
   if (canInstall) {
     return (
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="inset-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
-            <Download size={18} />
+          <div className="icon-tile h-10 w-10 shrink-0 rounded-xl">
+            <Download size={18} strokeWidth={2.25} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-ink-900">Install CPVS</p>
-            <p className="text-sm text-ink-500">Adds it to your home screen for quick, full-screen access.</p>
+            <p className="text-sm font-semibold text-ink-900">Install CPVS</p>
+            <p className="text-sm leading-relaxed text-ink-500">Adds it to your home screen for quick, full-screen access.</p>
           </div>
         </div>
         <button onClick={handleInstall} className="btn-primary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto">
@@ -102,15 +119,15 @@ function InstallOrUpdateRow() {
   // a dead end.
   const { steps, unsupported } = getInstallInstructions();
   return (
-    <div className="flex items-start gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
-        <Share size={18} />
+    <div className="inset-panel flex items-start gap-3 p-4">
+      <div className="icon-tile h-10 w-10 shrink-0 rounded-xl">
+        <Share size={18} strokeWidth={2.25} />
       </div>
-      <div className="text-sm text-ink-500">
+      <div className="text-sm leading-relaxed text-ink-500">
         {unsupported ? (
           <p>{steps[0]}</p>
         ) : (
-          <ol className="list-decimal space-y-0.5 pl-4">
+          <ol className="list-decimal space-y-1 pl-4">
             {steps.map((step, i) => (
               <li key={i}>{step}</li>
             ))}
@@ -136,13 +153,19 @@ function NotificationRow() {
     permission === 'granted' ? 'Enabled' : permission === 'denied' ? 'Blocked in browser settings' : permission === 'unsupported' ? 'Not supported here' : 'Not enabled';
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="inset-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
-          {permission === 'granted' ? <Bell size={18} /> : <BellOff size={18} />}
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${
+            permission === 'granted'
+              ? 'bg-status-present/12 text-status-present ring-status-present/25'
+              : 'bg-surface-alt text-ink-400 ring-surface-line'
+          }`}
+        >
+          {permission === 'granted' ? <Bell size={18} strokeWidth={2.25} /> : <BellOff size={18} strokeWidth={2.25} />}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-ink-900">Browser notifications</p>
+          <p className="text-sm font-semibold text-ink-900">Browser notifications</p>
           <p className="text-sm text-ink-500">{statusLabel}</p>
         </div>
       </div>
@@ -173,40 +196,63 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="font-display text-2xl font-semibold text-ink-900">Settings</h1>
+      <h1 className="font-display text-2xl font-semibold tracking-tightest text-ink-900">Settings</h1>
 
-      <SettingsSection title="App" description="Install CPVS as an app, or check that you're on the latest version.">
+      <SettingsSection icon={Download} title="App" description="Install CPVS as an app, or check that you're on the latest version.">
         <InstallOrUpdateRow />
       </SettingsSection>
 
-      <SettingsSection title="Appearance" description="Choose how CPVS looks on this device.">
+      <SettingsSection icon={Sparkles} title="Appearance" description="Choose how CPVS looks on this device.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {THEME_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => setPreference(opt.value)}
-              className={`flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-colors ${
-                preference === opt.value ? 'border-clinical-200 bg-clinical-50' : 'border-surface-line hover:bg-surface-muted'
+              className={`group relative flex flex-col items-start gap-2.5 overflow-hidden rounded-xl2 p-4 text-left transition-all duration-300 ease-spring ${
+                preference === opt.value
+                  ? 'bg-gradient-to-br from-clinical-500/14 via-clinical-500/8 to-vital-500/8 ring-2 ring-inset ring-clinical-500/40'
+                  : 'bg-surface-alt/40 ring-1 ring-inset ring-surface-line hover:-translate-y-0.5 hover:bg-surface hover:shadow-lift'
               }`}
             >
-              <opt.icon size={18} className={preference === opt.value ? 'text-clinical-600' : 'text-ink-400'} />
-              <span className={`text-sm font-medium ${preference === opt.value ? 'text-clinical-700' : 'text-ink-700'}`}>{opt.label}</span>
-              <span className="text-xs text-ink-400">{opt.blurb}</span>
+              {preference === opt.value && (
+                <span className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-clinical-500/20 blur-2xl" />
+              )}
+              <span className="relative flex w-full items-center justify-between">
+                <span
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-inset transition-colors duration-300 ${
+                    preference === opt.value
+                      ? 'bg-clinical-500/15 text-clinical-600 ring-clinical-500/25'
+                      : 'bg-surface-alt text-ink-400 ring-surface-line'
+                  }`}
+                >
+                  <opt.icon size={15} strokeWidth={2.25} />
+                </span>
+                {/* Two-tone preview of the theme this button switches to. */}
+                <span className="flex items-center -space-x-1.5">
+                  <span className="h-4 w-4 rounded-full ring-1 ring-inset ring-black/10" style={{ background: opt.swatch[0] }} />
+                  <span className="h-4 w-4 rounded-full ring-1 ring-inset ring-black/10" style={{ background: opt.swatch[1] }} />
+                </span>
+              </span>
+              <span className={`relative text-sm font-semibold ${preference === opt.value ? 'text-clinical-700' : 'text-ink-700'}`}>{opt.label}</span>
+              <span className="relative text-xs leading-relaxed text-ink-400">{opt.blurb}</span>
             </button>
           ))}
         </div>
       </SettingsSection>
 
-      <SettingsSection title="Notifications">
+      <SettingsSection icon={Bell} title="Notifications">
         <NotificationRow />
       </SettingsSection>
 
-      <SettingsSection title="Account">
+      <SettingsSection icon={KeyRound} title="Account">
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-ink-900">{profile?.full_name}</p>
-              <p className="text-sm text-ink-500">{profile?.email}</p>
+          <div className="inset-panel flex items-center gap-3.5 p-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-vital-400 to-clinical-500 text-sm font-bold text-onAccent shadow-glow-accent ring-2 ring-surface">
+              {profile?.full_name?.[0]?.toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-ink-900">{profile?.full_name}</p>
+              <p className="truncate text-sm text-ink-500">{profile?.email}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -231,8 +277,8 @@ export default function Settings() {
         onCancel={() => setConfirmingSignOut(false)}
       />
 
-      <div className="flex items-center gap-2 px-1 text-xs text-ink-300">
-        <Info size={13} />
+      <div className="flex items-center justify-center gap-2 px-1 pb-2 text-2xs font-medium uppercase tracking-widest text-ink-400">
+        <Info size={12} />
         CPVS — Clinical Practice Verification System
       </div>
     </div>

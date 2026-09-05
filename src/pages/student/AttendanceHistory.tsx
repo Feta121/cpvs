@@ -53,7 +53,7 @@ export default function AttendanceHistory() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-ink-900">Attendance history</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tightest text-ink-900">Attendance history</h1>
         <p className="mt-1 text-sm text-ink-500">Review your clinical attendance by month.</p>
       </div>
 
@@ -67,21 +67,25 @@ export default function AttendanceHistory() {
         ].map((s) => {
           const c = statusColors(s.tone);
           return (
-            <div key={s.label} className={`surface-card p-4 text-center`}>
-              <p className={`font-display text-2xl font-semibold ${c.text}`}>{s.value}</p>
-              <p className="mt-1 text-xs text-ink-500">{s.label}</p>
+            <div
+              key={s.label}
+              className={`surface-card relative overflow-hidden p-4 text-center transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:shadow-lift`}
+            >
+              <span className={`pointer-events-none absolute inset-x-0 top-0 h-[3px] ${c.dot}`} />
+              <p className={`stat-value text-3xl ${c.text}`}>{s.value}</p>
+              <p className="section-label mt-1.5">{s.label}</p>
             </div>
           );
         })}
       </div>
 
       <div className="surface-card p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <button onClick={() => setMonth((m) => subMonths(m, 1))} className="rounded-lg p-1.5 hover:bg-surface-muted">
+        <div className="mb-5 flex items-center justify-between">
+          <button onClick={() => setMonth((m) => subMonths(m, 1))} className="btn-icon h-9 w-9" aria-label="Previous month">
             <ChevronLeft size={18} />
           </button>
-          <h2 className="font-display text-sm font-semibold text-ink-900">{format(month, 'MMMM yyyy')}</h2>
-          <button onClick={() => setMonth((m) => addMonths(m, 1))} className="rounded-lg p-1.5 hover:bg-surface-muted">
+          <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">{format(month, 'MMMM yyyy')}</h2>
+          <button onClick={() => setMonth((m) => addMonths(m, 1))} className="btn-icon h-9 w-9" aria-label="Next month">
             <ChevronRight size={18} />
           </button>
         </div>
@@ -89,29 +93,49 @@ export default function AttendanceHistory() {
         {loading ? (
           <FullScreenLoader label="Loading calendar…" />
         ) : (
-          <div className="grid grid-cols-7 gap-1.5 text-center">
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-              <div key={i} className="pb-1 text-[11px] font-medium text-ink-300">{d}</div>
-            ))}
-            {Array.from({ length: leadingBlanks }).map((_, i) => (
-              <div key={`blank-${i}`} />
-            ))}
-            {days.map((day) => {
-              const rec = recordFor(day);
-              const c = rec ? statusColors(rec.status) : null;
-              return (
-                <div
-                  key={day.toISOString()}
-                  className={`flex aspect-square flex-col items-center justify-center rounded-lg text-xs ${
-                    c ? `${c.bg} ${c.text} font-semibold` : 'text-ink-300'
-                  }`}
-                  title={rec ? rec.status.replace('_', ' ') : undefined}
-                >
-                  {format(day, 'd')}
-                </div>
-              );
-            })}
-          </div>
+          <>
+            <div className="grid grid-cols-7 gap-1.5 text-center">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                <div key={i} className="pb-2 text-2xs font-semibold uppercase tracking-widest text-ink-400">{d}</div>
+              ))}
+              {Array.from({ length: leadingBlanks }).map((_, i) => (
+                <div key={`blank-${i}`} />
+              ))}
+              {days.map((day) => {
+                const rec = recordFor(day);
+                const c = rec ? statusColors(rec.status) : null;
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`flex aspect-square flex-col items-center justify-center rounded-xl border text-xs tabular-nums transition-all duration-200 ${
+                      c
+                        ? `${c.bg} ${c.text} ${c.border} font-bold hover:scale-105 hover:shadow-card`
+                        : 'border-surface-line/60 text-ink-400'
+                    }`}
+                    title={rec ? rec.status.replace('_', ' ') : undefined}
+                  >
+                    {format(day, 'd')}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Legend — reuses statusColors so it can never drift from the grid. */}
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-surface-line pt-4">
+              {[
+                { label: 'Present', tone: 'present' as const },
+                { label: 'Late', tone: 'late' as const },
+                { label: 'Very Late', tone: 'very_late' as const },
+                { label: 'Absent', tone: 'absent' as const },
+                { label: 'Excused', tone: 'excused' as const },
+              ].map((l) => (
+                <span key={l.label} className="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wider text-ink-500">
+                  <span className={`h-2 w-2 rounded-full ${statusColors(l.tone).dot}`} />
+                  {l.label}
+                </span>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

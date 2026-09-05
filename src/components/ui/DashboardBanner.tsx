@@ -21,9 +21,16 @@ export default function DashboardBanner() {
   const src = preference === 'dark' ? '/wordmark-dark.png' : preference === 'aether' ? '/wordmark-aether.png' : '/wordmark.png';
 
   return (
-    <div className="surface-card flex items-center gap-3 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
-      <img src={src} alt="CPVS" className="h-7 w-auto shrink-0 sm:h-9" />
-      <p className="font-display text-sm font-semibold leading-tight text-ink-900 sm:text-base">
+    <div className="surface-card relative flex items-center gap-3 overflow-hidden px-4 py-3.5 sm:gap-4 sm:px-6 sm:py-5">
+      {/* Full-bleed gradient rail + corner bloom, so the app's header strip
+          carries the brand colors instead of reading as an empty white bar. */}
+      <span className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-clinical-500 via-vital-500 to-clinical-400" />
+      <span className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-clinical-500/12 blur-3xl" />
+      <span className="pointer-events-none absolute -bottom-24 left-1/3 h-40 w-40 rounded-full bg-vital-500/10 blur-3xl" />
+
+      <img src={src} alt="CPVS" className="relative h-7 w-auto shrink-0 sm:h-9" />
+      <span className="relative hidden h-8 w-px bg-surface-line sm:block" />
+      <p className="relative font-display text-sm font-semibold leading-tight tracking-[-0.01em] text-ink-900 sm:text-base">
         Clinical Practice Verification System
       </p>
     </div>

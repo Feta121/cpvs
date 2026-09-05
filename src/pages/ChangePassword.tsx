@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { KeyRound, Loader2 } from 'lucide-react';
+import { KeyRound, Loader2, Lock, ShieldCheck, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -41,72 +41,83 @@ export default function ChangePassword() {
     }
 
     if (profile) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ must_change_password: false })
-    .eq('id', profile.id)
-    .select();
+      // Clears the "you must change your password" flag so the app stops
+      // redirecting back here on every page load.
+      const { error: flagError } = await supabase
+        .from('profiles')
+        .update({ must_change_password: false })
+        .eq('id', profile.id)
+        .select();
 
-  console.log("DATA:", data);
-  console.log("ERROR:", error);
+      if (flagError) {
+        setError(flagError.message);
+        setSubmitting(false);
+        return;
+      }
+    }
 
-  if (error) {
-    setError(error.message);
+    await refreshProfile();
     setSubmitting(false);
-    return;
+    showSuccess('Password updated successfully.');
+    navigate('/', { replace: true });
   }
-}
-
-await refreshProfile();
-setSubmitting(false);
-showSuccess('Password updated successfully.');
-navigate("/", { replace: true });
-}
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4">
-      <div className="w-full max-w-md animate-fadeUp">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-vital-600 text-onAccent shadow-glass">
-            <KeyRound size={22} />
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="animate-fadeUp w-full max-w-md">
+        <div className="mb-7 flex flex-col items-center text-center">
+          <div className="icon-tile-accent mb-5 h-14 w-14 rounded-xl3 shadow-glow-accent">
+            <KeyRound size={24} strokeWidth={2.25} />
           </div>
-          <h1 className="font-display text-xl font-semibold text-ink-900">
+          <h1 className="font-display text-2xl font-semibold tracking-tightest text-ink-900">
             {isForced ? 'Set a new password' : 'Change your password'}
           </h1>
-          <p className="mt-1 text-sm text-ink-500">
+          <p className="mt-2 max-w-xs text-sm leading-relaxed text-ink-500">
             {isForced ? 'This is your first sign-in. Choose a password only you know.' : 'Choose a new password for your account.'}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="glass-card space-y-4 p-7">
+        <form onSubmit={handleSubmit} className="glass-card relative space-y-4 overflow-hidden p-7">
+          <span className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-vital-500 via-clinical-500 to-vital-400" />
+
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">New password</label>
-            <input
-              type="password"
-              className="input-field"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <Lock size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+              <input
+                type="password"
+                className="input-field pl-10"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-ink-400">
+              <ShieldCheck size={12} /> Use at least 8 characters.
+            </p>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-700">Confirm password</label>
-            <input
-              type="password"
-              className="input-field"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <Lock size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+              <input
+                type="password"
+                className="input-field pl-10"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           {error && (
-            <div className="rounded-xl border border-status-expired/20 bg-status-expired/5 px-3 py-2 text-sm text-status-expired">
-              {error}
+            <div className="flex items-start gap-2.5 rounded-xl border border-status-expired/25 bg-status-expired/8 px-3.5 py-3 text-sm text-status-expired">
+              <AlertCircle size={16} className="mt-px shrink-0" />
+              <span className="leading-snug">{error}</span>
             </div>
           )}
 
-          <div className={isForced ? '' : 'flex gap-2'}>
+          <div className={isForced ? 'pt-1' : 'flex gap-2.5 pt-1'}>
             {!isForced && (
               <button
                 type="button"

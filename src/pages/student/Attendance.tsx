@@ -4,10 +4,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { supabase } from '../../lib/supabase';
 import { getCurrentPosition, isWithinGeofence, resolveAttendanceStatus, statusColors } from '../../utils/geofence';
+import { checkIn as submitCheckIn, checkOut as submitCheckOut } from '../../utils/attendanceApi';
+import { addisToday, addisDayIndex } from '../../utils/addisDate';
 import { verifyDeviceBiometric } from '../../utils/webauthn';
 import { extractFaceDescriptor, captureFrame } from '../../utils/faceRecognition';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
-import type { Rotation, Hospital, AttendanceRecord, AttendanceStatus } from '../../types/database';
+import type { Rotation, Hospital, AttendanceRecord } from '../../types/database';
 import Badge from '../../components/ui/Badge';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 
@@ -38,12 +40,11 @@ export default function StudentAttendance() {
   const [working, setWorking] = useState(false);
   const [noPracticeReason, setNoPracticeReason] = useState<string | null>(null);
 
-  // Added for migration 0014. Stashes the GPS position + computed status
-  // between the initial "Check in now" tap and the moment verification
-  // (device biometric or selfie match) actually succeeds — the attendance
-  // row isn't written until that succeeds, so this needs to survive across
-  // however many renders the selfie flow takes.
-  const pendingCheckIn = useRef<{ pos: GeolocationPosition; status: AttendanceStatus } | null>(null);
+  // Added for migration 0014. Stashes the GPS position between the initial
+  // "Check in now" tap and the moment selfie verification actually succeeds
+  // — the check-in RPC isn't called until that succeeds, so this needs to
+  // survive across however many renders the selfie flow takes.
+  const pendingCheckIn = useRef<GeolocationPosition | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [captured, setCaptured] = useState<string | null>(null);
   const [cameraOn, setCameraOn] = useState(false);
@@ -55,13 +56,25 @@ export default function StudentAttendance() {
 
   async function loadData() {
     setLoading(true);
-    const dateStr = new Date().toISOString().slice(0, 10);
+    // Africa/Addis_Ababa, not UTC. `toISOString()` used to be used here, which
+    // returned yesterday's date between midnight and 03:00 local time — so a
+    // student opening the page early looked up the wrong day's schedule and
+    // the wrong day's attendance row.
+    const dateStr = addisToday();
 
     const { data: rotationData } = await supabase
       .from('rotations')
       .select('*, hospital:hospitals(*)')
       .eq('student_id', student!.id)
       .eq('status', 'active')
+      // `.maybeSingle()` on its own throws if a student somehow has two active
+      // rotations (an overlapping reassignment), which showed up as a blank
+      // page rather than a message. Pick the most recent one instead — the
+      // same ordering `check_in()` uses in migration 0015, so the page and the
+      // server always agree on which rotation is in play.
+      .order('start_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
     setRotation(rotationData as any);
 
@@ -96,7 +109,7 @@ export default function StudentAttendance() {
           .eq('date', dateStr);
 
         const hasExplicitSchedule = (scheduleRows ?? []).length > 0;
-        const dayIndex = new Date().getDay();
+        const dayIndex = addisDayIndex();
         const defaultDayIsClinical = dayConfig ? !!(dayConfig as any)[DAY_KEYS[dayIndex]] : dayIndex === 1 || dayIndex === 2 || dayIndex === 3;
         const specialDayApplies = (specialDays ?? []).some((s) => matchesScope(s, rotationData.hospital_id, batch, student!.id));
 
@@ -167,41 +180,21 @@ export default function StudentAttendance() {
     }
   }
 
-  // Added for migration 0014. This is the ONLY place that actually writes
-  // the attendance row — both the device-biometric path and the selfie
-  // path funnel into this once verification has succeeded. `verifiedMethod`
-  // /`selfiePath`/`faceMatchDistance` are the audit-trail fields a
-  // coordinator can later review (see migration 0014's comment on RLS: the
-  // insert itself is refused by the database unless a fresh verification
-  // pass exists, regardless of what this function sends).
+  // Added for migration 0014/0016. The only place that actually calls the
+  // check_in() RPC — both the device-biometric path and the selfie path
+  // funnel into this once verification has succeeded. `verification` is
+  // audit-trail only (see the comment in utils/attendanceApi.ts): the real
+  // gate is the pass check inside check_in() itself, so this function
+  // cannot be reached without a fresh, server-set verification pass either
+  // way.
   async function finalizeCheckIn(
     pos: GeolocationPosition,
-    status: AttendanceStatus,
-    verifiedMethod: 'webauthn' | 'selfie',
-    extra?: { selfiePath?: string | null; faceMatchDistance?: number | null }
+    verification?: { method: 'webauthn' | 'selfie'; selfiePath?: string | null; faceMatchDistance?: number | null }
   ) {
     if (!rotation || !student) return;
     try {
-      const { data, error } = await supabase
-        .from('attendance')
-        .insert({
-          student_id: student.id,
-          rotation_id: rotation.id,
-          hospital_id: rotation.hospital.id,
-          date: new Date().toISOString().slice(0, 10),
-          check_in_time: new Date().toISOString(),
-          check_in_lat: pos.coords.latitude,
-          check_in_lng: pos.coords.longitude,
-          status,
-          verified_method: verifiedMethod,
-          checkin_selfie_url: extra?.selfiePath ?? null,
-          face_match_distance: extra?.faceMatchDistance ?? null,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setToday(data);
+      const record = await submitCheckIn(pos.coords.latitude, pos.coords.longitude, verification);
+      setToday(record);
       setPhase('done');
       setMessage('Checked in successfully.');
     } catch (err: any) {
@@ -221,8 +214,10 @@ export default function StudentAttendance() {
     try {
       const pos = await getCurrentPosition();
       const now = new Date();
-      const { status, canCheckIn } = resolveAttendanceStatus(now, rotation.hospital.checkin_start_time, rotation.hospital.session_expires_at);
+      const { canCheckIn } = resolveAttendanceStatus(now, rotation.hospital.checkin_start_time, rotation.hospital.session_expires_at);
 
+      // A courtesy pre-check so the student isn't sent to the server just to
+      // be told the window closed. Not the real gate — the server re-checks.
       if (!canCheckIn) {
         setPhase('expired');
         setMessage(`Session time expired. Check-in is closed after ${rotation.hospital.session_expires_at.slice(0, 5)}.`);
@@ -232,10 +227,12 @@ export default function StudentAttendance() {
 
       // Added for migration 0014. Every check-in requires a second,
       // device-bound factor on top of geofencing — otherwise a friend
-      // holding the right password (and standing in the right place)
-      // could check in on someone else's behalf. Which path runs depends
-      // on how this student enrolled (see BiometricEnrollment.tsx),
-      // required before they could reach this page at all.
+      // holding the right password (and standing in the right place) could
+      // check in on someone else's behalf. Which path runs depends on how
+      // this student enrolled (see BiometricEnrollment.tsx), required
+      // before they could reach this page at all. check_in() (migration
+      // 0016) still refuses the write without a fresh pass regardless of
+      // what happens here — this only produces that pass.
       if (student.verification_method === 'webauthn') {
         setPhase('verifying-device');
         setMessage('Confirm with your fingerprint or Face ID…');
@@ -246,16 +243,18 @@ export default function StudentAttendance() {
           setWorking(false);
           return;
         }
-        await finalizeCheckIn(pos, status, 'webauthn');
+        await finalizeCheckIn(pos, { method: 'webauthn' });
       } else {
-        // Selfie path: defer the actual insert until after a successful
-        // match — stash what we already have and show the camera.
-        pendingCheckIn.current = { pos, status };
+        // Selfie path: defer the actual check-in call until after a
+        // successful match — stash what we already have and show the camera.
+        pendingCheckIn.current = pos;
         setPhase('selfie-checkin');
         setWorking(false);
         await startCamera();
       }
     } catch (err: any) {
+      // The database raises messages written for students to read (which
+      // hospital, how far away, when the window closed), so show them as-is.
       setMessage(err.message ?? 'Check-in failed.');
       setPhase('error');
       setWorking(false);
@@ -315,8 +314,8 @@ export default function StudentAttendance() {
       return;
     }
 
-    const { pos, status } = pendingCheckIn.current;
-    await finalizeCheckIn(pos, status, 'selfie', { selfiePath: (data as any).selfiePath, faceMatchDistance: (data as any).distance });
+    const pos = pendingCheckIn.current;
+    await finalizeCheckIn(pos, { method: 'selfie', selfiePath: (data as any).selfiePath, faceMatchDistance: (data as any).distance });
   }
 
   async function handleCheckOut() {
@@ -324,20 +323,8 @@ export default function StudentAttendance() {
     setWorking(true);
     try {
       const pos = await getCurrentPosition();
-      const now = new Date();
-      const { data, error } = await supabase
-        .from('attendance')
-        .update({
-          check_out_time: now.toISOString(),
-          check_out_lat: pos.coords.latitude,
-          check_out_lng: pos.coords.longitude,
-        })
-        .eq('id', today.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      setToday(data);
+      const record = await submitCheckOut(pos.coords.latitude, pos.coords.longitude);
+      setToday(record);
       setPhase('done');
       setMessage('Checked out successfully. Have a good rest of your day.');
     } catch (err: any) {
@@ -351,9 +338,12 @@ export default function StudentAttendance() {
 
   if (!rotation) {
     return (
-      <div className="surface-card p-8 text-center">
-        <AlertCircle className="mx-auto mb-3 text-ink-300" size={28} />
-        <p className="text-sm text-ink-500">You don't have an active rotation assigned yet. Contact your coordinator.</p>
+      <div className="surface-card mx-auto max-w-lg p-10 text-center">
+        <div className="icon-tile mx-auto mb-4 h-14 w-14 rounded-xl3">
+          <AlertCircle size={24} strokeWidth={2.25} />
+        </div>
+        <p className="font-display text-lg font-semibold tracking-[-0.01em] text-ink-900">No active rotation</p>
+        <p className="mx-auto mt-1.5 max-w-xs text-sm leading-relaxed text-ink-500">You don't have an active rotation assigned yet. Contact your coordinator.</p>
       </div>
     );
   }
@@ -362,15 +352,19 @@ export default function StudentAttendance() {
     return (
       <div className="mx-auto max-w-lg space-y-6">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900">Check in</h1>
-          <p className="mt-1 text-sm text-ink-500">{rotation.hospital.name}</p>
+          <h1 className="font-display text-2xl font-semibold tracking-tightest text-ink-900">Check in</h1>
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-500">
+            <MapPin size={13} className="text-clinical-600" /> {rotation.hospital.name}
+          </p>
         </div>
-        <div className="surface-card flex flex-col items-center gap-3 p-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-clinical-50 text-clinical-600">
-            <CalendarX2 size={22} />
+        <div className="surface-card relative flex flex-col items-center gap-3.5 overflow-hidden p-10 text-center">
+          <span className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-clinical-500 via-vital-500 to-transparent" />
+          <span className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-clinical-500/10 blur-3xl" />
+          <div className="icon-tile relative h-14 w-14 rounded-xl3 shadow-glow">
+            <CalendarX2 size={24} strokeWidth={2.25} />
           </div>
-          <p className="text-sm font-medium text-ink-900">{noPracticeReason}</p>
-          <p className="text-xs text-ink-500">This day won't count as an absence.</p>
+          <p className="relative max-w-sm text-sm font-semibold leading-relaxed text-ink-900">{noPracticeReason}</p>
+          <p className="chip relative">This day won't count as an absence</p>
         </div>
       </div>
     );
@@ -381,43 +375,49 @@ export default function StudentAttendance() {
   return (
     <div className="mx-auto max-w-lg space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-ink-900">Check in</h1>
-        <p className="mt-1 text-sm text-ink-500">{rotation.hospital.name}</p>
+        <h1 className="font-display text-2xl font-semibold tracking-tightest text-ink-900">Check in</h1>
+        <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-500">
+          <MapPin size={13} className="text-clinical-600" /> {rotation.hospital.name}
+        </p>
       </div>
 
       {today && (
-        <div className={`rounded-xl2 border p-5 ${colors.border} ${colors.bg}`}>
+        <div className={`relative overflow-hidden rounded-xl2 border p-5 ${colors.border} ${colors.bg}`}>
+          <span className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${colors.dot}`} />
           <div className="flex items-center gap-2">
             <span className={`status-dot ${colors.dot}`} />
-            <span className={`text-sm font-semibold capitalize ${colors.text}`}>{today.status.replace('_', ' ')}</span>
+            <span className={`text-sm font-bold uppercase tracking-wider ${colors.text}`}>{today.status.replace('_', ' ')}</span>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-ink-500">
-            <div>
-              <p className="font-medium text-ink-700">Check-in</p>
-              <p>{today.check_in_time ? new Date(today.check_in_time).toLocaleTimeString() : '—'}</p>
+          <div className="mt-4 grid grid-cols-2 gap-2.5 text-xs">
+            <div className="rounded-xl bg-surface/60 p-3 ring-1 ring-inset ring-surface-line">
+              <p className="section-label">Check-in</p>
+              <p className="mt-1 font-semibold tabular-nums text-ink-900">{today.check_in_time ? new Date(today.check_in_time).toLocaleTimeString() : '—'}</p>
             </div>
-            <div>
-              <p className="font-medium text-ink-700">Check-out</p>
-              <p>{today.check_out_time ? new Date(today.check_out_time).toLocaleTimeString() : 'Not yet'}</p>
+            <div className="rounded-xl bg-surface/60 p-3 ring-1 ring-inset ring-surface-line">
+              <p className="section-label">Check-out</p>
+              <p className="mt-1 font-semibold tabular-nums text-ink-900">{today.check_out_time ? new Date(today.check_out_time).toLocaleTimeString() : 'Not yet'}</p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="glass-card p-8 text-center">
+      <div className="glass-card relative overflow-hidden p-8 text-center">
+        <span className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-clinical-500/10 blur-3xl" />
+        <span className="pointer-events-none absolute -bottom-24 -right-20 h-64 w-64 rounded-full bg-vital-500/10 blur-3xl" />
+
         {phase === 'selfie-checkin' ? (
           <>
-            <p className="mb-4 text-sm font-medium text-ink-900">Confirm it's you to finish checking in</p>
-            <div className="overflow-hidden rounded-xl2 bg-ink-900">
+            <p className="relative mb-4 text-sm font-semibold leading-relaxed text-ink-900">Confirm it's you to finish checking in</p>
+            <div className="relative overflow-hidden rounded-xl2 bg-ink-900">
               {captured ? (
                 <img src={captured} alt="Captured selfie" className="w-full" />
               ) : (
                 <video ref={videoRef} muted playsInline className="w-full -scale-x-100" />
               )}
             </div>
-            <div className="mt-5 flex flex-col gap-2.5">
+            <div className="relative mt-6 flex flex-col gap-2.5">
               {cameraOn && !captured && (
-                <button onClick={handleSelfieCapture} className="btn-primary">
+                <button onClick={handleSelfieCapture} className="btn-primary py-3">
                   <Camera size={16} /> Capture selfie
                 </button>
               )}
@@ -435,66 +435,68 @@ export default function StudentAttendance() {
           </>
         ) : (
           <>
-            <div className="relative mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-clinical-50">
+            <div className="relative mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-clinical-500/20 to-vital-500/10 text-clinical-600 ring-1 ring-inset ring-clinical-500/25">
               <div className="absolute inset-0 rounded-full animate-pulseRing" />
-              {phase === 'verifying-device' ? <Fingerprint size={30} className="text-clinical-600" /> : <MapPin size={30} className="text-clinical-600" />}
+              {phase === 'verifying-device' ? <Fingerprint size={30} strokeWidth={2.25} /> : <MapPin size={30} strokeWidth={2.25} />}
             </div>
 
-            <p className="mb-1 text-sm font-medium text-ink-900">
+            <p className="relative mx-auto mb-1 max-w-sm text-sm font-semibold leading-relaxed text-ink-900">
               {phase === 'idle' && 'Tap below to verify your location'}
               {phase === 'locating' && 'Locating you…'}
               {phase !== 'idle' && phase !== 'locating' && message}
             </p>
             {distance !== null && phase === 'out-of-range' && (
-              <p className="mb-4 text-xs text-ink-500">Distance to hospital: {distance}m (radius {rotation.hospital.radius_meters}m)</p>
+              <p className="relative mb-4 text-xs tabular-nums text-ink-500">Distance to hospital: {distance}m (radius {rotation.hospital.radius_meters}m)</p>
             )}
 
-            <div className="mt-6 flex flex-col gap-2.5">
+            <div className="relative mt-6 flex flex-col gap-2.5">
               {(phase === 'idle' || phase === 'out-of-range' || phase === 'error') && (
-                <button onClick={handleLocate} className="btn-primary">
+                <button onClick={handleLocate} className="btn-primary py-3">
                   <MapPin size={16} /> Verify my location
                 </button>
               )}
 
               {phase === 'locating' && (
-                <button disabled className="btn-primary">
+                <button disabled className="btn-primary py-3">
                   <Loader2 size={16} className="animate-spin" /> Locating…
                 </button>
               )}
 
               {phase === 'ready-checkin' && (
-                <button onClick={handleCheckIn} disabled={working} className="btn-primary">
+                <button onClick={handleCheckIn} disabled={working} className="btn-primary py-3">
                   {working ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />} Check in now
                 </button>
               )}
 
               {phase === 'verifying-device' && (
-                <button disabled className="btn-primary">
+                <button disabled className="btn-primary py-3">
                   <Loader2 size={16} className="animate-spin" /> Verifying…
                 </button>
               )}
 
               {phase === 'ready-checkout' && (
-                <button onClick={handleCheckOut} disabled={working} className="btn-primary">
+                <button onClick={handleCheckOut} disabled={working} className="btn-primary py-3">
                   {working ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />} Check out now
                 </button>
               )}
 
               {phase === 'done' && (
-                <div className="flex items-center justify-center gap-2 text-sm font-medium text-vital-700">
+                <div className="flex items-center justify-center gap-2 rounded-xl2 bg-status-present/10 py-3 text-sm font-semibold text-status-present ring-1 ring-inset ring-status-present/25">
                   <CheckCircle2 size={16} /> All set for today.
                 </div>
               )}
 
               {phase === 'expired' && (
-                <Badge tone="expired">Session time expired</Badge>
+                <div className="flex justify-center">
+                  <Badge tone="expired">Session time expired</Badge>
+                </div>
               )}
             </div>
           </>
         )}
       </div>
 
-      <p className="text-center text-xs text-ink-300">
+      <p className="mx-auto max-w-md text-center text-xs leading-relaxed text-ink-400">
         Check-in windows — Present before {rotation.hospital.checkin_start_time.slice(0, 5)} · Late for the hour after · Very Late until {rotation.hospital.session_expires_at.slice(0, 5)} · Closed after {rotation.hospital.session_expires_at.slice(0, 5)}.
       </p>
     </div>

@@ -54,25 +54,28 @@ export default function ConfirmDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={handleCancel}>
-      <div
-        className="w-full max-w-md rounded-xl2 bg-surface p-6 shadow-glass"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-start justify-between">
-          <div className={`flex h-10 w-10 items-center justify-center rounded-full ${danger ? 'bg-status-expired/10 text-status-expired' : 'bg-clinical-50 text-clinical-600'}`}>
-            <AlertTriangle size={18} />
+    <div className="modal-overlay" onClick={handleCancel}>
+      <div className="modal-panel max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl2 bg-gradient-to-br ring-1 ring-inset ${
+              danger
+                ? 'from-status-expired/25 to-status-expired/5 text-status-expired ring-status-expired/30'
+                : 'from-clinical-500/22 to-vital-500/10 text-clinical-600 ring-clinical-500/25'
+            }`}
+          >
+            <AlertTriangle size={19} strokeWidth={2.25} />
           </div>
-          <button onClick={handleCancel} className="text-ink-300 hover:text-ink-500">
-            <X size={18} />
+          <button onClick={handleCancel} className="btn-icon h-8 w-8" aria-label="Close">
+            <X size={16} />
           </button>
         </div>
-        <h2 className="font-display text-base font-semibold text-ink-900">{title}</h2>
-        <p className="mt-2 whitespace-pre-line text-sm text-ink-500">{message}</p>
+        <h2 className="font-display text-lg font-semibold tracking-[-0.01em] text-ink-900">{title}</h2>
+        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-500">{message}</p>
 
         {strict && (
-          <div className="mt-4">
-            <label className="mb-1.5 block text-xs font-medium text-ink-700">
+          <div className="inset-panel mt-5 p-4">
+            <label className="mb-2 block text-xs font-medium text-ink-700">
               Type <span className="font-mono font-semibold text-status-expired">{confirmText}</span> to confirm
             </label>
             <input
@@ -85,12 +88,12 @@ export default function ConfirmDialog({
           </div>
         )}
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 flex justify-end gap-2.5">
           <button onClick={handleCancel} className="btn-secondary">{cancelLabel}</button>
           <button
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className={`${danger ? 'btn-primary !bg-status-expired hover:!bg-red-700' : 'btn-primary'} disabled:cursor-not-allowed disabled:opacity-40`}
+            className={`${danger ? 'btn-danger' : 'btn-primary'} disabled:cursor-not-allowed disabled:opacity-40`}
           >
             {confirmLabel}
           </button>

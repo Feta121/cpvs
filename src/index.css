@@ -3,90 +3,153 @@
 @tailwind utilities;
 
 /* ============================================================================
-   Theme tokens — light (default) and dark. All values are space-separated
-   RGB triples (not hex) so Tailwind's `rgb(var(--x) / <alpha-value>)` pattern
-   in tailwind.config.js can apply opacity modifiers like `bg-surface/80`.
+   THEME TOKENS — light (default), dark, and Aether.
 
-   Palette per spec:
-     Light — bg #F7F9FC, cards white, primary #0F4C81, accent #14B8A6,
-             success #10B981, warning #F59E0B, danger #EF4444, border #E5E7EB
-     Dark  — bg #0F172A, cards #1E293B, sidebar #111827, accent #2DD4BF,
-             primary #60A5FA, text #F8FAFC, muted #94A3B8 (no pure black)
+   All values are space-separated RGB triples (not hex) so Tailwind's
+   `rgb(var(--x) / <alpha-value>)` pattern in tailwind.config.js can apply
+   opacity modifiers like `bg-surface/80`.
+
+   VISUAL REDESIGN NOTES (this pass changed values, not structure):
+     - The primary/accent ramps are now real 50→950 scales instead of several
+       steps aliasing to the same value. Nothing in the markup had to change;
+       gradients, hovers, and tinted surfaces just gained real depth.
+     - Added --ink-600 / --ink-400. Both were already being used in markup
+       (LiveClock, Select, Settings, PermissionsFieldset) but were never
+       defined, so those utilities silently emitted nothing and the text fell
+       back to whatever it inherited.
+     - Added shadow tokens (--shadow-rgb + --sh-a*) so elevation is themed:
+       soft blue-tinted shadows on light, deep near-black ones on dark/Aether.
+       Previously every shadow was a hardcoded light-theme blue and read as
+       "flat" on the dark themes.
+     - Added --hl (top-edge highlight) so cards/buttons get the thin lit rim
+       that makes a surface read as physical rather than as a colored box.
+     - --on-primary / --on-accent on the dark themes flipped from white to
+       near-black. Those themes' primary is a LIGHT blue (#60A5FA) and accent
+       a light teal (#2DD4BF); white-on-light-blue was ~2:1 contrast. Both
+       variables exist precisely so the "text on top of the fill" color can
+       follow the fill's lightness, which is what they now do.
    ============================================================================ */
 :root {
-  --surface: 255 255 255;         /* #ffffff — cards */
-  --surface-muted: 247 249 252;   /* #F7F9FC — page background */
-  --surface-line: 229 231 235;    /* #E5E7EB — muted borders */
+  --surface: 255 255 255;         /* cards */
+  --surface-alt: 250 251 253;     /* very slightly recessed panels inside cards */
+  --surface-muted: 244 247 251;   /* page background — a touch cooler/bluer than before */
+  --surface-line: 226 232 240;    /* borders */
   --surface-sidebar: 255 255 255; /* light sidebar sits on the card color */
 
-  --ink-900: 15 23 42;    /* near-slate-900 — primary text */
-  --ink-700: 51 65 85;    /* secondary text */
+  --ink-900: 13 22 41;    /* primary text — deepened for crisper contrast */
+  --ink-700: 45 60 84;    /* secondary text */
+  --ink-600: 71 87 112;   /* labels */
   --ink-500: 100 116 139; /* muted text */
-  --ink-300: 148 163 184; /* placeholder/faint text */
+  --ink-400: 128 143 165; /* faint meta text */
+  --ink-300: 154 168 187; /* placeholder text */
 
-  --primary-50: 241 244 247;
-  --primary-100: 226 234 240;
-  --primary-200: 188 205 220;
-  --primary-300: 147 174 198;
-  --primary-400: 75 121 160;
-  --primary-500: 15 76 129;   /* #0F4C81 */
-  --primary-600: 15 76 129;
-  --primary-700: 16 63 106;
+  /* Primary — the spec navy #0F4C81 sits at 600, with a real ramp around it. */
+  --primary-50: 238 245 252;
+  --primary-100: 218 233 247;
+  --primary-200: 180 209 234;
+  --primary-300: 130 177 215;
+  --primary-400: 66 126 180;
+  --primary-500: 23 92 150;
+  --primary-600: 15 76 129;  /* #0F4C81 */
+  --primary-700: 12 62 106;
+  --primary-800: 10 50 86;
+  --primary-900: 10 40 69;
+  --primary-950: 6 25 44;
 
-  --accent-50: 241 251 250;
-  --accent-100: 227 246 244;
-  --accent-200: 189 235 230;
-  --accent-300: 149 223 215;
-  --accent-400: 79 202 188;
-  --accent-500: 20 184 166;  /* #14B8A6 */
-  --accent-600: 20 184 166;
-  --accent-700: 19 144 134;
+  /* Accent — the spec teal #14B8A6 at 500; 600 is now genuinely darker so
+     white text on an accent fill is legible (it used to equal 500). */
+  --accent-50: 236 253 250;
+  --accent-100: 206 250 243;
+  --accent-200: 157 240 229;
+  --accent-300: 94 224 210;
+  --accent-400: 45 205 188;
+  --accent-500: 20 184 166; /* #14B8A6 */
+  --accent-600: 13 156 141;
+  --accent-700: 12 125 115;
+  --accent-800: 13 99 92;
+  --accent-900: 15 81 76;
 
-  --success: 16 185 129;  /* #10B981 */
-  --warning: 245 158 11;  /* #F59E0B */
-  --danger: 239 68 68;    /* #EF4444 */
-  --verylate: 242 113 40; /* blend of warning/danger, kept visually distinct from plain "late" */
+  /* Status — deepened for the light theme so `text-status-*` on a /10 tint is
+     actually readable, which the previous 500-level values were not. */
+  --success: 5 150 105;
+  --warning: 202 106 6;
+  --danger: 220 38 38;
+  --verylate: 226 78 12; /* between warning and danger, kept distinct from plain "late" */
 
   --on-primary: 255 255 255; /* text drawn on top of primary-600 (buttons, active nav) */
-  --on-accent: 255 255 255; /* text drawn on top of accent-500/600 (vital-colored badges/buttons) */
+  --on-accent: 255 255 255;  /* text drawn on top of accent-500/600 */
+
+  /* Elevation + rim light */
+  --shadow-rgb: 13 42 78;
+  --sh-a1: 0.05;
+  --sh-a2: 0.09;
+  --sh-a3: 0.14;
+  --hl: rgba(255, 255, 255, 0.9);
+  --glass-a: 0.74;
+
+  /* Ambient background wash */
+  --orb-1: var(--primary-500);
+  --orb-2: var(--accent-500);
+  --orb-a1: 0.13;
+  --orb-a2: 0.11;
 }
 
 .dark {
-  --surface: 30 41 59;            /* #1E293B — cards */
-  --surface-muted: 15 23 42;      /* #0F172A — page background */
-  --surface-line: 51 65 85;       /* subtle border against dark cards */
-  --surface-sidebar: 17 24 39;    /* #111827 — sidebar, distinct from page bg */
+  --surface: 22 30 47;            /* cards — deeper and bluer than before */
+  --surface-alt: 27 37 57;
+  --surface-muted: 10 15 27;      /* page background */
+  --surface-line: 41 54 78;
+  --surface-sidebar: 13 19 33;    /* sidebar, distinct from page bg */
 
-  --ink-900: 248 250 252; /* #F8FAFC — primary text */
-  --ink-700: 226 232 240;
-  --ink-500: 148 163 184; /* #94A3B8 — muted text */
-  --ink-300: 100 116 139;
+  --ink-900: 241 246 253;
+  --ink-700: 205 216 232;
+  --ink-600: 174 189 210;
+  --ink-500: 144 160 183;
+  --ink-400: 121 137 161;
+  --ink-300: 100 115 140;
 
-  --primary-50: 42 63 93;
-  --primary-100: 48 76 112;
-  --primary-200: 60 97 145;
-  --primary-300: 70 115 174;
-  --primary-400: 83 140 212;
-  --primary-500: 96 165 250;  /* #60A5FA */
-  --primary-600: 96 165 250;
-  --primary-700: 120 178 251;
+  /* Dark ramps run the other way: higher steps get BRIGHTER, since on a dark
+     surface "more emphasis" means more light, not less. */
+  --primary-50: 27 44 71;
+  --primary-100: 33 55 89;
+  --primary-200: 41 73 117;
+  --primary-300: 53 99 157;
+  --primary-400: 73 133 204;
+  --primary-500: 96 165 250; /* #60A5FA */
+  --primary-600: 112 176 252;
+  --primary-700: 141 195 253;
+  --primary-800: 170 212 254;
+  --primary-900: 200 227 255;
+  --primary-950: 227 240 255;
 
-  --accent-50: 33 72 83;
-  --accent-100: 34 89 96;
-  --accent-200: 37 118 118;
-  --accent-300: 39 144 138;
-  --accent-400: 42 178 165;
-  --accent-500: 45 212 191;  /* #2DD4BF */
-  --accent-600: 45 212 191;
-  --accent-700: 76 218 201;
+  --accent-50: 19 62 63;
+  --accent-100: 21 76 78;
+  --accent-200: 24 102 102;
+  --accent-300: 28 130 126;
+  --accent-400: 34 172 159;
+  --accent-500: 45 212 191; /* #2DD4BF */
+  --accent-600: 68 220 202;
+  --accent-700: 106 230 215;
+  --accent-800: 150 239 228;
+  --accent-900: 191 246 239;
 
-  --success: 16 185 129;
+  --success: 52 211 153;
   --warning: 245 158 11;
-  --danger: 239 68 68;
-  --verylate: 242 113 40;
+  --danger: 239 68 68; /* kept at this level: .theme-danger-btn fills with it and forces white text */
+  --verylate: 249 115 22;
 
-  --on-primary: 255 255 255;
-  --on-accent: 255 255 255;
+  --on-primary: 8 16 31;  /* the dark theme's primary is a LIGHT blue — needs dark text */
+  --on-accent: 6 22 24;
+
+  --shadow-rgb: 0 0 0;
+  --sh-a1: 0.32;
+  --sh-a2: 0.46;
+  --sh-a3: 0.62;
+  --hl: rgba(255, 255, 255, 0.055);
+  --glass-a: 0.62;
+
+  --orb-a1: 0.16;
+  --orb-a2: 0.13;
 }
 
 /* ============================================================================
@@ -105,56 +168,67 @@
    restyling those was out of scope for "add a third theme."
    ============================================================================ */
 .theme-aether {
-  --surface: 26 28 32;            /* #1A1C20 — cards */
-  --surface-muted: 17 19 23;      /* #111317 — page background */
-  --surface-line: 55 57 62;       /* #37393E — borders */
-  --surface-sidebar: 12 14 18;    /* #0C0E12 — sidebar, distinct from page bg */
+  --surface: 24 27 32;            /* cards */
+  --surface-alt: 29 32 38;
+  --surface-muted: 15 17 21;      /* page background */
+  --surface-line: 52 56 63;       /* borders */
+  --surface-sidebar: 11 13 17;    /* sidebar, distinct from page bg */
 
-  --ink-900: 226 226 232; /* #E2E2E8 — primary text */
-  --ink-700: 180 180 188; /* muted light gray — secondary text */
-  --ink-500: 138 139 147; /* more muted — meta text */
-  --ink-300: 92 93 100;   /* faint — placeholders */
+  --ink-900: 231 232 238;
+  --ink-700: 179 182 190;
+  --ink-600: 156 159 168;
+  --ink-500: 134 137 147;
+  --ink-400: 112 115 124;
+  --ink-300: 93 96 105;
 
   /* Primary = the reference's lime-green accent, used for buttons, active
-     nav, and focus states. 700 is a brighter (not darker) lime for hover —
-     darkening a bright accent on a near-black background just makes it
-     look disabled, so this follows the same "hover gets brighter" pattern
-     the existing dark theme already uses for its own primary/accent. */
-  --primary-50: 40 51 21;
-  --primary-100: 51 64 24;
-  --primary-200: 68 87 27;
-  --primary-300: 90 116 30;
-  --primary-400: 130 175 38;
-  --primary-500: 173 255 47;   /* #ADFF2F */
-  --primary-600: 173 255 47;
-  --primary-700: 197 255 105;  /* brighter lime, hover/glow */
+     nav, and focus states. Higher steps are BRIGHTER lime, not darker —
+     darkening a bright accent on a near-black background just makes it look
+     disabled, the same "hover gets brighter" pattern the dark theme uses. */
+  --primary-50: 37 49 20;
+  --primary-100: 48 63 23;
+  --primary-200: 65 86 27;
+  --primary-300: 90 118 31;
+  --primary-400: 131 177 39;
+  --primary-500: 173 255 47;  /* #ADFF2F */
+  --primary-600: 183 255 75;
+  --primary-700: 201 255 118;
+  --primary-800: 216 255 156;
+  --primary-900: 231 255 196;
+  --primary-950: 243 255 226;
 
   /* Secondary/tertiary accent = medical teal-cyan, used sparingly (data
      points, secondary highlights) — keeps two distinct accent colors like
      the reference's primary/tertiary split, rather than lime everywhere. */
-  --accent-50: 20 55 58;
-  --accent-100: 22 68 72;
-  --accent-200: 26 92 97;
-  --accent-300: 30 120 127;
-  --accent-400: 34 168 176;
-  --accent-500: 0 220 230;   /* #00DCE6 */
-  --accent-600: 0 220 230;
-  --accent-700: 80 230 238;
+  --accent-50: 17 52 56;
+  --accent-100: 19 65 70;
+  --accent-200: 23 89 95;
+  --accent-300: 27 116 124;
+  --accent-400: 31 165 175;
+  --accent-500: 0 220 230;  /* #00DCE6 */
+  --accent-600: 46 226 235;
+  --accent-700: 96 234 241;
+  --accent-800: 152 242 246;
+  --accent-900: 201 248 250;
 
   /* Status colors intentionally unchanged from .dark — see note above. */
-  --success: 16 185 129;
+  --success: 52 211 153;
   --warning: 245 158 11;
   --danger: 239 68 68;
-  --verylate: 242 113 40;
+  --verylate: 249 115 22;
 
-  --on-primary: 13 15 17; /* near-black text on the bright lime buttons */
-  --on-accent: 13 15 17; /* near-black text on the bright teal-cyan accent */
-}
+  --on-primary: 12 16 8; /* near-black text on the bright lime buttons */
+  --on-accent: 4 20 22;  /* near-black text on the bright teal-cyan accent */
 
-.theme-aether body {
-  background-image:
-    radial-gradient(circle at 8% 0%, rgba(173,255,47,0.08), transparent 40%),
-    radial-gradient(circle at 100% 30%, rgba(0,220,230,0.07), transparent 45%);
+  --shadow-rgb: 0 0 0;
+  --sh-a1: 0.36;
+  --sh-a2: 0.5;
+  --sh-a3: 0.66;
+  --hl: rgba(255, 255, 255, 0.045);
+  --glass-a: 0.6;
+
+  --orb-a1: 0.14;
+  --orb-a2: 0.12;
 }
 
 /* ============================================================================
@@ -201,15 +275,23 @@
   --wordmark-fill: var(--primary-600);
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Smooth 300ms color transition when switching themes, applied broadly so
    nothing "flashes" — but scoped to color-related properties only, so it
    never interferes with layout, transform, or other animations already in
    use (buttons, page transitions, etc). */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   transition-property: background-color, border-color, color, fill, stroke, box-shadow;
   transition-duration: 300ms;
   transition-timing-function: ease;
@@ -217,36 +299,150 @@ html, body, #root {
 
 body {
   @apply bg-surface-muted text-ink-900 font-body antialiased;
+  /* Static mesh wash — three very low-alpha layers instead of the previous
+     two, so the page never reads as a flat rectangle of one color. */
   background-image:
-    radial-gradient(circle at 8% 0%, rgba(15,76,129,0.05), transparent 40%),
-    radial-gradient(circle at 100% 30%, rgba(20,184,166,0.06), transparent 45%);
+    radial-gradient(1200px 620px at 6% -8%, rgb(var(--orb-1) / 0.07), transparent 62%),
+    radial-gradient(1000px 560px at 104% 12%, rgb(var(--orb-2) / 0.06), transparent 60%),
+    radial-gradient(900px 700px at 50% 118%, rgb(var(--orb-1) / 0.05), transparent 64%);
   background-attachment: fixed;
+  text-rendering: optimizeLegibility;
 }
 
-.dark body {
-  background-image:
-    radial-gradient(circle at 8% 0%, rgba(96,165,250,0.08), transparent 40%),
-    radial-gradient(circle at 100% 30%, rgba(45,212,191,0.07), transparent 45%);
+/* ----------------------------------------------------------------------------
+   Ambient drifting orbs. Purely decorative depth behind the whole app: two
+   fixed, very soft radial washes that drift slowly in opposite directions,
+   so glass surfaces have something real to blur and the page has a sense of
+   atmosphere rather than a static gradient.
+
+   Implemented on body's pseudo-elements (no markup added anywhere) and kept
+   below content by giving #root a higher stacking order. They use radial
+   gradients rather than a solid + filter: blur(), which would be far more
+   expensive to composite on mobile.
+   ---------------------------------------------------------------------------- */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 9999px;
+  will-change: transform;
+}
+
+body::before {
+  top: -20vmax;
+  left: -14vmax;
+  width: 54vmax;
+  height: 54vmax;
+  background: radial-gradient(circle at 50% 50%, rgb(var(--orb-1) / var(--orb-a1)), transparent 68%);
+  animation: orbDriftA 30s ease-in-out infinite alternate;
+}
+
+body::after {
+  right: -18vmax;
+  bottom: -24vmax;
+  width: 60vmax;
+  height: 60vmax;
+  background: radial-gradient(circle at 50% 50%, rgb(var(--orb-2) / var(--orb-a2)), transparent 68%);
+  animation: orbDriftB 38s ease-in-out infinite alternate;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes orbDriftA {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(9vmax, 6vmax, 0) scale(1.12);
+  }
+}
+
+@keyframes orbDriftB {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-8vmax, -7vmax, 0) scale(1);
+  }
+}
+
+@keyframes livePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(var(--success) / 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgb(var(--success) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(var(--success) / 0);
+  }
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @layer components {
+  /* --------------------------------------------------------------------------
+     SURFACES
+     -------------------------------------------------------------------------- */
   .glass-card {
-    @apply bg-surface/70 backdrop-blur-md border border-surface-line/60 shadow-glass rounded-xl2;
+    @apply border border-surface-line/60 shadow-glass rounded-xl2 backdrop-blur-xl;
+    background-color: rgb(var(--surface) / var(--glass-a));
+    background-image: linear-gradient(160deg, var(--hl), transparent 42%);
   }
 
   .surface-card {
     @apply bg-surface border border-surface-line shadow-card rounded-xl2;
   }
 
-  /* Ripple + hover-lift base, shared by all button variants. The ripple is a
-     radial-gradient "flash" triggered on :active via background-size, which
-     avoids needing JS click-position tracking for a simple, tasteful effect. */
+  /* Opt-in hover elevation for cards that are actually clickable/navigable.
+     Deliberately not baked into .surface-card — a static panel that lifts
+     under the cursor reads as broken affordance. */
+  .card-hover {
+    @apply transition-[transform,box-shadow,border-color] duration-300 ease-spring;
+  }
+  .card-hover:hover {
+    @apply -translate-y-1 shadow-lift;
+    border-color: rgb(var(--primary-300) / 0.65);
+  }
+
+  /* A recessed panel for nesting inside a card (detail rows, code blocks,
+     summary strips) — one step back from the card instead of one step out. */
+  .inset-panel {
+    @apply rounded-xl border border-surface-line/70;
+    background-color: rgb(var(--surface-alt));
+  }
+
+  /* --------------------------------------------------------------------------
+     BUTTONS
+
+     The ripple is a radial-gradient "flash" driven by background-size on
+     :active, which avoids needing JS click-position tracking. Because that
+     occupies the background-image slot, variant styling uses background-COLOR
+     plus box-shadow rims, and the hover sheen rides on a ::after with a
+     negative z-index (which is why .btn-base isolates: without a stacking
+     context, a -1 child can escape behind the card the button sits on).
+     -------------------------------------------------------------------------- */
   .btn-base {
-    @apply relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl px-4 py-2.5
-      text-sm font-semibold transition-all duration-200 ease-out
+    @apply relative inline-flex select-none items-center justify-center gap-2 overflow-hidden rounded-xl px-4 py-2.5
+      text-sm font-semibold tracking-[-0.005em] transition-all duration-200 ease-spring
       active:scale-[0.97]
       disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100;
-    background-image: radial-gradient(circle, rgba(255,255,255,0.35) 10%, transparent 10.5%);
+    isolation: isolate;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.35) 10%, transparent 10.5%);
     background-repeat: no-repeat;
     background-position: 50%;
     background-size: 6000% 6000%;
@@ -256,27 +452,57 @@ body {
     transition: background-size 0.5s ease-out, transform 0.15s ease-out;
   }
 
-  .btn-primary {
-    @apply btn-base bg-clinical-600 text-onPrimary shadow-sm hover:bg-clinical-700 hover:-translate-y-0.5 hover:shadow-lift;
+  /* Diagonal light sweep across filled buttons on hover. */
+  .btn-base::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    opacity: 0;
+    background: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, 0.32) 48%, transparent 64%);
+    transform: translateX(-120%);
+    transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+  }
+  .btn-base:hover:not(:disabled)::after {
+    opacity: 1;
+    transform: translateX(120%);
   }
 
-  /* CHANGED: text-ink-700 -> text-clinical-700 at rest (was previously only
-     themed on hover). ink-700 is a neutral gray CSS var that reads nearly
-     identically across all three themes, which is exactly why every
-     secondary button — Export CSV, Check for missed check-ins, Backfill,
-     Edit/Deactivate/Delete on Hospitals — looked like flat gray regardless
-     of theme. clinical-700 is the same primary-color variable every other
-     themed element (buttons, active nav, links) already reads from, so this
-     one class fix makes all of the above pick up each theme's real color
-     (navy in light, sky blue in dark, lime #ADFF2F in aether) without
-     touching each usage individually. */
+  .btn-primary {
+    @apply btn-base bg-clinical-600 text-onPrimary;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgb(var(--shadow-rgb) / var(--sh-a1)),
+      0 6px 16px -8px rgb(var(--primary-600) / 0.55);
+  }
+  .btn-primary:hover:not(:disabled) {
+    @apply -translate-y-0.5 bg-clinical-500;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 0 0 1px rgb(var(--primary-500) / 0.35),
+      0 14px 30px -10px rgb(var(--primary-500) / 0.6);
+  }
+
+  /* text-clinical-700 (not ink-700) at rest is deliberate: ink-700 is a
+     neutral gray that reads nearly identically in all three themes, which is
+     why every secondary button — Export CSV, Check for missed check-ins,
+     Backfill, Edit/Deactivate/Delete — used to look like flat gray no matter
+     the theme. clinical-700 is the same primary variable every other themed
+     element reads from, so each theme's real color comes through. */
   .btn-secondary {
-    @apply btn-base border border-surface-line bg-surface text-clinical-700
-      hover:-translate-y-0.5 hover:border-clinical-300 hover:text-clinical-800 hover:shadow-card;
+    @apply btn-base border border-surface-line bg-surface text-clinical-700;
+    box-shadow: inset 0 1px 0 var(--hl), 0 1px 2px rgb(var(--shadow-rgb) / var(--sh-a1));
+  }
+  .btn-secondary:hover:not(:disabled) {
+    @apply -translate-y-0.5 text-clinical-800;
+    background-color: rgb(var(--primary-500) / 0.07);
+    border-color: rgb(var(--primary-400) / 0.45);
+    box-shadow: inset 0 1px 0 var(--hl), 0 10px 22px -12px rgb(var(--shadow-rgb) / var(--sh-a2));
   }
 
   .btn-danger {
-    @apply btn-base bg-status-expired text-white shadow-sm hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lift;
+    @apply btn-base bg-status-expired text-white;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 6px 16px -8px rgb(var(--danger) / 0.55);
+  }
+  .btn-danger:hover:not(:disabled) {
+    @apply -translate-y-0.5 brightness-110;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 14px 30px -10px rgb(var(--danger) / 0.6);
   }
 
   /* Solid red / white text+icon on the Dark and Aether themes for any
@@ -300,36 +526,300 @@ body {
   }
 
   .btn-success {
-    @apply btn-base bg-status-present text-white shadow-sm hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lift;
+    @apply btn-base bg-status-present text-white;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 6px 16px -8px rgb(var(--success) / 0.5);
+  }
+  .btn-success:hover:not(:disabled) {
+    @apply -translate-y-0.5 brightness-110;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 14px 30px -10px rgb(var(--success) / 0.55);
   }
 
   .btn-ghost {
     @apply btn-base text-ink-500 hover:bg-surface-muted hover:text-ink-900;
   }
 
+  /* Square icon-only button, for toolbars and card headers. */
+  .btn-icon {
+    @apply relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-surface-line
+      bg-surface text-ink-500 transition-all duration-200 ease-spring
+      hover:-translate-y-0.5 hover:text-clinical-600 disabled:opacity-50 disabled:pointer-events-none;
+    box-shadow: inset 0 1px 0 var(--hl);
+  }
+  .btn-icon:hover:not(:disabled) {
+    background-color: rgb(var(--primary-500) / 0.08);
+    border-color: rgb(var(--primary-400) / 0.4);
+  }
+
+  /* --------------------------------------------------------------------------
+     FORM CONTROLS
+     -------------------------------------------------------------------------- */
   .input-field {
     @apply w-full rounded-xl border border-surface-line bg-surface px-4 py-2.5 text-sm text-ink-900
-      placeholder:text-ink-300 outline-none transition-all duration-150
-      focus:border-clinical-400 focus:ring-4 focus:ring-clinical-100;
+      placeholder:text-ink-300 outline-none transition-all duration-200;
+    box-shadow: inset 0 1px 2px rgb(var(--shadow-rgb) / calc(var(--sh-a1) * 0.8));
+  }
+  .input-field:hover:not(:focus):not(:disabled) {
+    border-color: rgb(var(--primary-300) / 0.7);
+  }
+  /* Focus ring built from the primary variable rather than `ring-clinical-100`:
+     the 100 step is a near-background tint on the dark themes, so the old
+     ring was effectively invisible there. */
+  .input-field:focus {
+    border-color: rgb(var(--primary-500));
+    box-shadow: 0 0 0 4px rgb(var(--primary-500) / 0.16), inset 0 1px 2px rgb(var(--shadow-rgb) / calc(var(--sh-a1) * 0.8));
+  }
+  .input-field:disabled {
+    @apply cursor-not-allowed opacity-60;
+    background-color: rgb(var(--surface-alt));
   }
 
+  /* --------------------------------------------------------------------------
+     BADGES / PILLS / MICRO-TYPE
+     -------------------------------------------------------------------------- */
   .badge {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold tracking-[0.01em];
+    box-shadow: inset 0 0 0 1px rgb(var(--surface-line) / 0.55);
   }
 
+  /* The halo is drawn in the dot's own color, so a status dot reads as lit
+     rather than as a printed circle — and it works on any background without
+     needing to know what it's sitting on. */
   .status-dot {
-    @apply h-2 w-2 rounded-full;
+    @apply h-2 w-2 shrink-0 rounded-full;
+    box-shadow: 0 0 8px 0 currentColor;
   }
 
+  /* "Live"/monitoring indicator — a status dot that breathes. */
+  .live-dot {
+    @apply h-2 w-2 shrink-0 rounded-full bg-status-present;
+    animation: livePulse 2.4s ease-out infinite;
+  }
+
+  /* Neutral metadata pill (counts, filters, key/value chips). */
+  .chip {
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-surface-line px-2.5 py-1
+      text-xs font-medium text-ink-500;
+    background-color: rgb(var(--surface-alt));
+  }
+
+  /* Small all-caps section label — the typographic device that separates
+     groups of content without needing another card or border. */
+  .section-label {
+    @apply text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink-400;
+  }
+
+  /* --------------------------------------------------------------------------
+     DECORATIVE HELPERS
+     -------------------------------------------------------------------------- */
+  /* Primary → accent gradient text, for page/hero headings. */
+  .gradient-text {
+    background-image: linear-gradient(
+      100deg,
+      rgb(var(--primary-600)),
+      rgb(var(--accent-500)) 52%,
+      rgb(var(--primary-500))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Tinted, rimmed square that an icon sits in — used for stat cards, empty
+     states, and dialog headers so icons feel mounted rather than floating. */
+  .icon-tile {
+    @apply relative flex shrink-0 items-center justify-center rounded-xl text-clinical-600;
+    background-image: linear-gradient(140deg, rgb(var(--primary-500) / 0.18), rgb(var(--accent-500) / 0.12));
+    box-shadow: inset 0 0 0 1px rgb(var(--primary-500) / 0.18), inset 0 1px 0 var(--hl);
+  }
+  .icon-tile-accent {
+    @apply text-vital-600;
+    background-image: linear-gradient(140deg, rgb(var(--accent-500) / 0.2), rgb(var(--primary-500) / 0.1));
+    box-shadow: inset 0 0 0 1px rgb(var(--accent-500) / 0.2), inset 0 1px 0 var(--hl);
+  }
+
+  /* Hairline divider that fades out at both ends instead of butting into the
+     card edge. */
+  .hairline {
+    @apply h-px w-full border-0;
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--surface-line)) 12%,
+      rgb(var(--surface-line)) 88%,
+      transparent
+    );
+  }
+
+  /* Big numeric readouts: display face, tight tracking, tabular figures so
+     values don't shift width as they tick. */
+  .stat-value {
+    @apply font-display font-semibold tracking-[-0.02em];
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --------------------------------------------------------------------------
+     OVERLAYS
+     -------------------------------------------------------------------------- */
+  .modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+    background-color: rgb(var(--shadow-rgb) / 0.5);
+    backdrop-filter: blur(8px) saturate(1.15);
+    -webkit-backdrop-filter: blur(8px) saturate(1.15);
+    animation: fadeUp 0.2s ease-out both;
+  }
+
+  .modal-panel {
+    @apply w-full rounded-xl3 border border-surface-line bg-surface shadow-float;
+    background-image: linear-gradient(170deg, var(--hl), transparent 34%);
+    animation: popIn 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* --------------------------------------------------------------------------
+     LOADING
+     -------------------------------------------------------------------------- */
   .skeleton {
-    @apply rounded-lg bg-surface-line/70 bg-gradient-to-r from-surface-line/40 via-surface-line/80 to-surface-line/40 bg-[length:400px_100%] animate-shimmer;
+    @apply rounded-lg animate-shimmer;
+    background-color: rgb(var(--surface-line) / 0.55);
+    background-image: linear-gradient(
+      90deg,
+      rgb(var(--surface-line) / 0) 0%,
+      rgb(var(--surface-line) / 0.85) 45%,
+      rgb(var(--ink-300) / 0.18) 55%,
+      rgb(var(--surface-line) / 0) 100%
+    );
+    background-size: 420px 100%;
+    background-repeat: no-repeat;
   }
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { @apply bg-ink-300/40 rounded-full; }
-::-webkit-scrollbar-track { background: transparent; }
+/* ============================================================================
+   Chrome-level polish: scrollbars, text selection, keyboard focus.
+   ============================================================================ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--ink-300) / 0.35);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--primary-500) / 0.5);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+* {
+  scrollbar-color: rgb(var(--ink-300) / 0.35) transparent;
+  scrollbar-width: thin;
+}
+
+::selection {
+  background-color: rgb(var(--primary-500) / 0.24);
+  color: rgb(var(--ink-900));
+}
+
+/* Keyboard-only focus ring. Scoped to buttons and links so it never fights
+   the .input-field focus treatment above, and never appears on mouse click. */
+a:focus-visible,
+button:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid rgb(var(--primary-500) / 0.7);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  *,
+  body::before,
+  body::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ============================================================================
+   Leaflet theming (HospitalActivityMap + MapPicker).
+
+   Leaflet renders its own chrome — tile pane, zoom buttons, attribution,
+   tooltips — inside the map container, and none of it goes through Tailwind.
+   Left alone, a bright OpenStreetMap raster and white browser-default
+   controls sit inside an otherwise fully themed dark/Aether page. These
+   rules restain that chrome from the same tokens as everything else.
+
+   The tile filter is scoped to .leaflet-tile-pane specifically (NOT the
+   whole container) on purpose: inverting the container would also invert
+   the CircleMarkers and tooltips, which are already themed correctly.
+   ============================================================================ */
+.leaflet-container {
+  background: rgb(var(--surface-muted)) !important;
+  font-family: inherit !important;
+}
+
+.map-shell-dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.55);
+}
+
+.leaflet-control-attribution {
+  background: rgb(var(--surface) / 0.82) !important;
+  color: rgb(var(--ink-400)) !important;
+  backdrop-filter: blur(6px);
+  border-top-left-radius: 8px;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a {
+  color: rgb(var(--primary-600)) !important;
+}
+
+.leaflet-bar,
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background-color: rgb(var(--surface)) !important;
+  color: rgb(var(--ink-700)) !important;
+  border-color: rgb(var(--surface-line)) !important;
+}
+.leaflet-bar a:hover {
+  color: rgb(var(--primary-600)) !important;
+}
+.leaflet-bar {
+  border-radius: 10px !important;
+  overflow: hidden;
+  box-shadow: 0 4px 14px -6px rgb(var(--shadow-rgb) / var(--sh-a2)) !important;
+}
+
+.leaflet-tooltip {
+  background: rgb(var(--surface)) !important;
+  color: rgb(var(--ink-900)) !important;
+  border: 1px solid rgb(var(--surface-line)) !important;
+  border-radius: 10px !important;
+  padding: 6px 9px !important;
+  font-weight: 500;
+  box-shadow: 0 12px 30px -14px rgb(var(--shadow-rgb) / var(--sh-a3)) !important;
+}
+.leaflet-tooltip-top::before {
+  border-top-color: rgb(var(--surface-line)) !important;
+}
+.leaflet-tooltip-bottom::before {
+  border-bottom-color: rgb(var(--surface-line)) !important;
+}
+.leaflet-tooltip-left::before {
+  border-left-color: rgb(var(--surface-line)) !important;
+}
+.leaflet-tooltip-right::before {
+  border-right-color: rgb(var(--surface-line)) !important;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: rgb(var(--surface)) !important;
+  color: rgb(var(--ink-900)) !important;
+  box-shadow: 0 18px 44px -20px rgb(var(--shadow-rgb) / var(--sh-a3)) !important;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  border: 1px solid rgb(var(--surface-line)) !important;
 }

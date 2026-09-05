@@ -32,6 +32,27 @@
 // If it's all `before_cutoff`, the hospital's session_expires_at hasn't
 // passed yet in Addis Ababa time — use a manual `{"date": "..."}` call to
 // bypass that and confirm the rest of the logic works.
+//
+// ----------------------------------------------------------------------------
+// AUTHORIZATION (added in the 0014/0015 security pass)
+//
+// This function had no caller check whatsoever. It uses the service-role key
+// internally, so it bypasses RLS completely — which meant ANY valid login
+// token was enough to invoke it, including a student's own session token.
+// Supabase's default `verify_jwt = true` only proves the caller is signed in
+// as *somebody*; it says nothing about who. A student could therefore call
+// `{"date": "..."}` for any past date and have the function write 'absent'
+// rows and "Marked absent" notifications for every other student in the
+// system — a denial-of-service against classmates' records, and a way to
+// generate real-looking notifications from the system itself.
+//
+// Two callers are legitimate, and both are now checked explicitly:
+//   1. The pg_cron job in supabase/cron.sql, which authenticates with the
+//      service-role key (see the Bearer token in that file).
+//   2. A signed-in, active coordinator holding `can_manage_attendance` —
+//      the "Check for missed check-ins" button and the date backfill on the
+//      coordinator dashboard (CoordinatorDashboard.tsx:147 and :202).
+// Everyone else gets a 403.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
@@ -100,13 +121,60 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const admin = createClient(supabaseUrl, serviceRoleKey);
+
+    // ------------------------------------------------------------------
+    // Authorization. See the note at the top of this file.
+    // ------------------------------------------------------------------
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) return json({ error: 'Missing authorization header.' }, 401);
+
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const isCronCaller = bearerToken === serviceRoleKey;
+
+    if (!isCronCaller) {
+      // A user token: resolve who it belongs to and require an active
+      // coordinator with attendance permission. Same pattern as
+      // create-student / delete-coordinator, which already do this correctly.
+      const callerClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: userData, error: userError } = await callerClient.auth.getUser();
+      if (userError || !userData.user) {
+        return json({ error: 'Your session has expired. Please log in again.' }, 401);
+      }
+
+      const { data: callerCoordinator, error: callerCoordinatorError } = await admin
+        .from('coordinators')
+        .select('is_active, is_super_coordinator, can_manage_attendance')
+        .eq('id', userData.user.id)
+        .maybeSingle();
+      if (callerCoordinatorError) {
+        return json({ error: 'Unable to verify your permissions. ' + callerCoordinatorError.message }, 500);
+      }
+      if (!callerCoordinator?.is_active) {
+        return json({ error: 'Only an active coordinator can run the absence check.' }, 403);
+      }
+      if (!callerCoordinator.is_super_coordinator && !callerCoordinator.can_manage_attendance) {
+        return json({ error: "You don't have permission to run the absence check." }, 403);
+      }
+    }
 
     let targetDate: string;
     let isManualCall = false;
     try {
       const body = await req.json();
       if (body?.date) {
+        // Validate the shape rather than trusting it: this value is used as a
+        // date filter in several queries, and an unparseable string produced a
+        // raw Postgres error rather than a readable message.
+        if (typeof body.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+          return json({ error: 'Invalid date. Expected the format YYYY-MM-DD.' }, 400);
+        }
+        if (Number.isNaN(Date.parse(body.date + 'T00:00:00Z'))) {
+          return json({ error: 'Invalid date. That day does not exist.' }, 400);
+        }
         targetDate = body.date;
         isManualCall = true;
       } else {
@@ -174,7 +242,11 @@ Deno.serve(async (req) => {
     const alreadyRecorded = new Set((existing ?? []).map((a) => a.student_id));
 
     const toInsert: any[] = [];
-    const notifications: any[] = [];
+    // Keyed by student so that, after the upsert below tells us which rows
+    // were actually created, we only send notifications about those. Was a
+    // single flat array, which had to be sent all-or-nothing alongside the
+    // inserts.
+    const notificationsByStudent = new Map<string, any[]>();
     const skipped = { already_recorded: 0, not_expected_day: 0, exception_applies: 0, before_cutoff: 0 };
 
     for (const rotation of rotations as any[]) {
@@ -217,26 +289,51 @@ Deno.serve(async (req) => {
         status: 'absent',
       });
 
-      notifications.push({
-        user_id: rotation.student_id,
-        title: 'Marked absent',
-        message: `You were marked absent for ${targetDate}. If this is incorrect, submit an appeal.`,
-        type: 'attendance_warning',
-      });
-      notifications.push({
-        user_id: rotation.coordinator_id,
-        title: 'Student marked absent',
-        message: `${nameByStudentId.get(rotation.student_id) ?? 'A student'} (Batch ${batch || 'unknown'}) at ${rotation.hospital?.name ?? 'their hospital'} was marked absent for ${targetDate}.`,
-        type: 'attendance_warning',
-      });
+      notificationsByStudent.set(rotation.student_id, [
+        {
+          user_id: rotation.student_id,
+          title: 'Marked absent',
+          message: `You were marked absent for ${targetDate}. If this is incorrect, submit an appeal.`,
+          type: 'attendance_warning',
+        },
+        {
+          user_id: rotation.coordinator_id,
+          title: 'Student marked absent',
+          message: `${nameByStudentId.get(rotation.student_id) ?? 'A student'} (Batch ${batch || 'unknown'}) at ${rotation.hospital?.name ?? 'their hospital'} was marked absent for ${targetDate}.`,
+          type: 'attendance_warning',
+        },
+      ]);
     }
 
+    let markedCount = 0;
+
     if (toInsert.length > 0) {
-      const { error: insertError } = await admin.from('attendance').insert(toInsert);
+      // CHANGED: was a single `insert(toInsert)`. That is all-or-nothing —
+      // if ANY row in the batch collided with the unique(student_id, date)
+      // constraint, Postgres rejected the entire statement, so NOBODY was
+      // marked absent and the notification insert (which only ran on
+      // success) was skipped too. A collision is not hypothetical: it
+      // happens whenever a student checks in during the moments this
+      // function is running, or when a slow run overlaps the next cron tick
+      // five minutes later. `upsert` with `ignoreDuplicates` skips only the
+      // row that collided.
+      const { data: inserted, error: insertError } = await admin
+        .from('attendance')
+        .upsert(toInsert, { onConflict: 'student_id,date', ignoreDuplicates: true })
+        .select('student_id');
       if (insertError) throw insertError;
 
-      const { error: notifyError } = await admin.from('notifications').insert(notifications);
-      if (notifyError) throw notifyError;
+      // Notify only about rows that were really created, so a student who
+      // checked in right at the cutoff does not get a "Marked absent"
+      // message for a day they actually attended.
+      const insertedStudentIds = (inserted ?? []).map((a: any) => a.student_id);
+      markedCount = insertedStudentIds.length;
+
+      const notifications = insertedStudentIds.flatMap((id: string) => notificationsByStudent.get(id) ?? []);
+      if (notifications.length > 0) {
+        const { error: notifyError } = await admin.from('notifications').insert(notifications);
+        if (notifyError) throw notifyError;
+      }
     }
 
     // Record proof-of-execution — but only for a real "today" check (cron or
@@ -247,11 +344,11 @@ Deno.serve(async (req) => {
     if (!isManualCall) {
       await admin.from('system_status').update({
         last_mark_absences_run: new Date().toISOString(),
-        last_mark_absences_marked_count: toInsert.length,
+        last_mark_absences_marked_count: markedCount,
       }).eq('id', true);
     }
 
-    return json({ date: targetDate, checked: rotations.length, marked_absent: toInsert.length, skipped });
+    return json({ date: targetDate, checked: rotations.length, marked_absent: markedCount, skipped });
   } catch (err) {
     return json({ error: (err as Error).message }, 400);
   }

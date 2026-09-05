@@ -75,10 +75,15 @@ function ThemeToggle() {
   const { preference, setPreference } = useTheme();
   const activeIndex = THEME_OPTIONS.findIndex((o) => o.value === preference);
 
+  /* The track keeps its exact h-9 / w-24 / p-1 box and the thumb its h-7,
+     because the sliding thumb's position is computed from those numbers
+     (calc((100% - 8px) / 3)). The outline is an inset RING rather than a
+     border for the same reason — a border would shrink the padding box the
+     calc() resolves against. */
   return (
-    <div className="relative flex h-9 w-24 items-center rounded-full bg-surface-muted p-1">
+    <div className="relative flex h-9 w-24 items-center rounded-full bg-surface-alt p-1 ring-1 ring-inset ring-surface-line">
       <motion.div
-        className="absolute h-7 rounded-full bg-surface shadow-sm"
+        className="absolute h-7 rounded-full bg-surface shadow-card ring-1 ring-clinical-500/20"
         style={{ width: 'calc((100% - 8px) / 3)' }}
         animate={{ left: `calc(4px + ${activeIndex} * (100% - 8px) / 3)` }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
@@ -91,12 +96,22 @@ function ThemeToggle() {
           title={`${opt.label} theme`}
           className="relative z-10 flex h-7 flex-1 items-center justify-center"
         >
-          <opt.icon size={14} className={preference === opt.value ? 'text-clinical-600' : 'text-ink-300'} />
+          <opt.icon
+            size={14}
+            className={clsx(
+              'transition-colors',
+              preference === opt.value ? 'text-clinical-600' : 'text-ink-400 hover:text-ink-600',
+            )}
+          />
         </button>
       ))}
     </div>
   );
 }
+
+/** Shared look for the small round icon buttons that live in the top bar. */
+const TOPBAR_ICON_BTN =
+  'relative flex h-9 w-9 items-center justify-center rounded-xl text-ink-500 transition-all duration-200 hover:bg-clinical-500/10 hover:text-clinical-600';
 
 /** Bell with unread-count badge and a small dropdown of recent notifications — shared by both roles even though only students have a dedicated /notifications page. */
 function EnableNotificationsButton() {
@@ -116,11 +131,7 @@ function EnableNotificationsButton() {
   }
 
   return (
-    <button
-      onClick={handleClick}
-      title="Enable browser notifications"
-      className="flex h-9 w-9 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-surface-muted hover:text-ink-900"
-    >
+    <button onClick={handleClick} title="Enable browser notifications" className={TOPBAR_ICON_BTN}>
       <BellPlus size={17} />
     </button>
   );
@@ -211,10 +222,10 @@ function NotificationsMenu() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={handleOpen} className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-surface-muted hover:text-ink-900">
+      <button onClick={handleOpen} className={TOPBAR_ICON_BTN} aria-label="Notifications">
         <Bell size={18} />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-status-expired px-1 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-status-expired px-1 text-[10px] font-bold leading-none text-white ring-2 ring-surface">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -226,22 +237,41 @@ function NotificationsMenu() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-x-3 top-16 z-30 overflow-hidden rounded-xl2 border border-surface-line bg-surface shadow-glass sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80"
+            className="fixed inset-x-3 top-16 z-30 overflow-hidden rounded-xl3 border border-surface-line bg-surface shadow-float sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2.5 sm:w-80"
           >
-            <div className="border-b border-surface-line px-4 py-3 text-sm font-semibold text-ink-900">Notifications</div>
+            <div className="flex items-center gap-2.5 border-b border-surface-line px-4 py-3.5">
+              <span className="icon-tile h-7 w-7 rounded-lg">
+                <Bell size={14} strokeWidth={2.5} />
+              </span>
+              <span className="text-sm font-semibold text-ink-900">Notifications</span>
+              {unread > 0 && <span className="chip ml-auto py-0.5">{unread} new</span>}
+            </div>
             <div className="max-h-80 overflow-y-auto">
-              {items.length === 0 && <p className="px-4 py-6 text-center text-sm text-ink-500">You're all caught up.</p>}
+              {items.length === 0 && <p className="px-4 py-8 text-center text-sm text-ink-400">You're all caught up.</p>}
               {items.map((n) => (
-                <div key={n.id} className="border-b border-surface-line/60 px-4 py-3 last:border-b-0">
-                  <p className="text-sm font-medium text-ink-900">{n.title}</p>
-                  <p className="mt-0.5 text-xs text-ink-500">{n.message}</p>
+                <div
+                  key={n.id}
+                  className="relative border-b border-surface-line/60 px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-alt"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <span
+                      className={clsx(
+                        'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
+                        n.is_read ? 'bg-surface-line' : 'bg-clinical-500 shadow-[0_0_8px_0] shadow-clinical-500/70',
+                      )}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-snug text-ink-900">{n.title}</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-ink-500">{n.message}</p>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
             <NavLink
               to={profile?.role === 'coordinator' ? '/coordinator/notifications' : '/student/notifications'}
               onClick={() => setOpen(false)}
-              className="block border-t border-surface-line px-4 py-2.5 text-center text-xs font-medium text-clinical-600 hover:bg-surface-muted hover:text-clinical-700"
+              className="block border-t border-surface-line px-4 py-3 text-center text-xs font-semibold tracking-wide text-clinical-600 transition-colors hover:bg-clinical-500/8 hover:text-clinical-700"
             >
               View all notifications
             </NavLink>
@@ -267,11 +297,14 @@ function ProfileMenu({ onSignOut }: { onSignOut: () => void }) {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-surface-muted">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-vital-100 text-sm font-semibold text-vital-700">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-surface-alt"
+      >
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-vital-500 to-clinical-500 text-sm font-bold text-onAccent shadow-glow-accent">
           {profile?.full_name?.[0]?.toUpperCase() ?? '?'}
         </div>
-        <ChevronDown size={14} className="text-ink-500" />
+        <ChevronDown size={14} className={clsx('text-ink-400 transition-transform duration-200', open && 'rotate-180')} />
       </button>
       <AnimatePresence>
         {open && (
@@ -280,20 +313,34 @@ function ProfileMenu({ onSignOut }: { onSignOut: () => void }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-x-3 top-16 z-30 overflow-hidden rounded-xl2 border border-surface-line bg-surface shadow-glass sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-56"
+            className="fixed inset-x-3 top-16 z-30 overflow-hidden rounded-xl3 border border-surface-line bg-surface shadow-float sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2.5 sm:w-60"
           >
-            <div className="border-b border-surface-line px-4 py-3">
-              <p className="truncate text-sm font-medium text-ink-900">{profile?.full_name}</p>
-              <p className="truncate text-xs capitalize text-ink-500">{profile?.role}</p>
+            <div className="flex items-center gap-3 border-b border-surface-line px-4 py-3.5">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-vital-500 to-clinical-500 text-base font-bold text-onAccent">
+                {profile?.full_name?.[0]?.toUpperCase() ?? '?'}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-ink-900">{profile?.full_name}</p>
+                <p className="truncate text-xs capitalize text-ink-500">{profile?.role}</p>
+              </div>
             </div>
-            {profile?.role === 'student' && (
-              <NavLink to="/student/profile" onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-2.5 text-sm text-ink-700 hover:bg-surface-muted">
-                <User size={15} /> Profile
-              </NavLink>
-            )}
-            <button onClick={onSignOut} className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-status-expired hover:bg-status-expired/5">
-              <LogOut size={15} /> Sign out
-            </button>
+            <div className="p-1.5">
+              {profile?.role === 'student' && (
+                <NavLink
+                  to="/student/profile"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-alt hover:text-ink-900"
+                >
+                  <User size={15} /> Profile
+                </NavLink>
+              )}
+              <button
+                onClick={onSignOut}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-status-expired transition-colors hover:bg-status-expired/10"
+              >
+                <LogOut size={15} /> Sign out
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -334,11 +381,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <motion.aside
         animate={{ width: collapsed ? 84 : 256 }}
         transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-        className="sticky top-0 hidden h-screen shrink-0 flex-col border-r border-surface-line bg-surface-sidebar md:flex"
+        className="sticky top-0 z-30 hidden h-screen shrink-0 flex-col border-r border-surface-line bg-surface-sidebar md:flex"
       >
-        <div className={clsx('flex items-center px-5 py-6', collapsed ? 'justify-center' : 'justify-start')}>
+        {/* Brand-tinted wash down the sidebar so it separates from the page
+            without needing a heavier border. pointer-events-none + the
+            content sitting at z-10 keeps it purely decorative. */}
+        <span className="pointer-events-none absolute inset-0 bg-gradient-to-b from-clinical-500/[0.07] via-transparent to-vital-500/[0.06]" />
+
+        <div className={clsx('relative z-10 flex items-center px-5 py-6', collapsed ? 'justify-center' : 'justify-start')}>
           {collapsed ? (
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-clinical-600 text-onPrimary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl2 bg-gradient-to-br from-clinical-500 to-clinical-600 text-onPrimary shadow-glow">
               <Check size={20} strokeWidth={3} />
             </div>
           ) : (
@@ -346,7 +398,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
           )}
         </div>
 
-        <nav className="relative flex-1 space-y-1 overflow-y-auto px-3">
+        <div className="relative z-10 mx-4 mb-2 hairline" />
+
+        <nav className="relative z-10 flex-1 space-y-1 overflow-y-auto px-3 py-2">
           {nav.map((item, index) => {
             const isActive = matchesActive(location.pathname, item);
             const previousSection = index > 0 ? nav[index - 1].section : undefined;
@@ -354,21 +408,22 @@ export default function AppShell({ children }: { children: ReactNode }) {
             return (
               <div key={item.to}>
                 {showSectionHeader && !collapsed && (
-                  <p className={clsx('mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-ink-300', index === 0 ? 'mt-1' : 'mt-4')}>
+                  <p className={clsx('section-label mb-2 flex items-center gap-2 px-3', index === 0 ? 'mt-1' : 'mt-5')}>
                     {item.section}
+                    <span className="h-px flex-1 bg-surface-line" />
                   </p>
                 )}
                 {showSectionHeader && collapsed && index !== 0 && (
-                  <div className="my-2 border-t border-surface-line" />
+                  <div className="my-3 border-t border-surface-line" />
                 )}
                 <div className="group relative">
                 <NavLink
                   to={item.to}
                   end={item.end}
                   className={clsx(
-                    'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
-                    'hover:scale-[1.02] hover:bg-surface-muted',
-                    isActive ? 'text-clinical-700' : 'text-ink-700',
+                    'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-spring',
+                    isActive ? 'text-clinical-700' : 'text-ink-700 hover:bg-surface-alt hover:text-ink-900',
+                    !collapsed && !isActive && 'hover:translate-x-1',
                     collapsed && 'justify-center px-0'
                   )}
                 >
@@ -384,7 +439,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
                       layoutId="active-nav-pill"
                       className={clsx(
                         'absolute inset-0 rounded-xl',
-                        collapsed ? 'bg-clinical-600 shadow-lift' : 'bg-clinical-50 shadow-[0_0_0_1px_rgba(15,76,129,0.08)]'
+                        collapsed
+                          ? 'bg-gradient-to-br from-clinical-500 to-clinical-600 shadow-glow'
+                          : 'bg-gradient-to-r from-clinical-500/16 via-clinical-500/10 to-vital-500/8 ring-1 ring-inset ring-clinical-500/25'
                       )}
                       transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                     />
@@ -407,7 +464,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   {isActive && !collapsed && (
                     <motion.div
                       layoutId="active-nav-glow"
-                      className="absolute left-0 top-1/2 -mt-2.5 h-5 w-1 rounded-full bg-clinical-600"
+                      className="absolute left-0 top-1/2 -mt-2.5 h-5 w-[3px] rounded-full bg-gradient-to-b from-clinical-500 to-vital-500 shadow-[0_0_10px_0] shadow-clinical-500/70"
                       transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                     />
                   )}
@@ -419,7 +476,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                       isActive && (collapsed ? 'text-onPrimary' : 'text-clinical-600')
                     )}
                   />
-                  {!collapsed && <span className="relative z-10">{item.label}</span>}
+                  {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
                 </NavLink>
                 {/* CHANGED: added a CSS-triangle arrow pointing back at the
                     icon (border trick — transparent top/bottom/left,
@@ -430,8 +487,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
                     ml-3 to ml-2 on hover for a small slide-in instead of
                     appearing static. */}
                 {collapsed && (
-                  <div className="pointer-events-none absolute left-full top-1/2 z-30 ml-3 -translate-y-1/2 opacity-0 shadow-lg transition-all duration-150 group-hover:ml-2 group-hover:opacity-100">
-                    <div className="relative whitespace-nowrap rounded-lg bg-ink-900 px-2.5 py-1.5 text-xs font-medium text-surface">
+                  <div className="pointer-events-none absolute left-full top-1/2 z-30 ml-3 -translate-y-1/2 opacity-0 transition-all duration-150 group-hover:ml-2 group-hover:opacity-100">
+                    <div className="relative whitespace-nowrap rounded-lg bg-ink-900 px-2.5 py-1.5 text-xs font-semibold text-surface shadow-float">
                       <span className="absolute right-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-ink-900" />
                       {item.label}
                     </div>
@@ -443,10 +500,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="border-t border-surface-line p-3">
+        <div className="relative z-10 border-t border-surface-line p-3">
           <button
             onClick={() => setCollapsed((c) => !c)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-500 transition-colors hover:bg-surface-muted hover:text-ink-900"
+            className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-ink-500 transition-all duration-200 hover:bg-clinical-500/10 hover:text-clinical-600"
           >
             {collapsed ? <PanelLeftOpen size={18} /> : <><PanelLeftClose size={18} /> Collapse</>}
           </button>
@@ -459,28 +516,31 @@ export default function AppShell({ children }: { children: ReactNode }) {
             above ends up sized; offset to always sit beside the sidebar. */}
         <div
           style={{ left: collapsed ? 84 : 256 }}
-          className="fixed right-0 top-0 z-20 hidden items-center justify-between gap-4 border-b border-surface-line bg-surface/85 px-6 py-3.5 backdrop-blur-md transition-[left] duration-300 md:flex"
+          className="fixed right-0 top-0 z-20 hidden items-center justify-between gap-4 border-b border-surface-line/70 bg-surface/75 px-6 py-3.5 backdrop-blur-xl transition-[left] duration-300 md:flex"
         >
-          <h1 className="font-display text-lg font-semibold text-ink-900">{activeItem?.label}</h1>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="h-6 w-1 shrink-0 rounded-full bg-gradient-to-b from-clinical-500 to-vital-500" />
+            <h1 className="truncate font-display text-lg font-semibold tracking-[-0.015em] text-ink-900">{activeItem?.label}</h1>
+          </div>
 
-          <div className="relative flex-1 max-w-sm">
-            <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-300" />
+          <div className="relative max-w-sm flex-1">
+            <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search sections…"
-              className="w-full rounded-full border border-surface-line bg-surface-muted py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-clinical-300 focus:ring-4 focus:ring-clinical-100"
+              className="w-full rounded-full border border-surface-line bg-surface-alt py-2 pl-9 pr-3 text-sm text-ink-900 outline-none transition-all duration-200 placeholder:text-ink-400 hover:border-clinical-300/70 focus:border-clinical-500 focus:bg-surface focus:shadow-[0_0_0_4px_rgb(var(--primary-500)/0.14)]"
             />
             {searchMatches.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-30 mt-1.5 overflow-hidden rounded-xl border border-surface-line bg-surface shadow-glass">
+              <div className="animate-scaleIn absolute left-0 right-0 top-full z-30 mt-2 origin-top overflow-hidden rounded-xl2 border border-surface-line bg-surface p-1.5 shadow-float">
                 {searchMatches.map((m) => (
                   <NavLink
                     key={m.to}
                     to={m.to}
                     onClick={() => setSearch('')}
-                    className="flex items-center gap-2 px-3.5 py-2.5 text-sm text-ink-700 hover:bg-surface-muted"
+                    className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-ink-700 transition-colors hover:bg-surface-alt hover:text-clinical-700"
                   >
-                    <m.icon size={14} /> {m.label}
+                    <m.icon size={15} className="text-ink-400" /> {m.label}
                   </NavLink>
                 ))}
               </div>
@@ -488,21 +548,31 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <EnableNotificationsButton />
-            <NotificationsMenu />
+            {/* The two bell actions read as one grouped control island; the
+                theme switch and avatar stay separate so they don't get lost
+                in it. */}
+            <div className="flex items-center gap-0.5 rounded-2xl bg-surface-alt/70 p-0.5 ring-1 ring-inset ring-surface-line">
+              <EnableNotificationsButton />
+              <NotificationsMenu />
+            </div>
             <ThemeToggle />
+            <span className="h-6 w-px bg-surface-line" />
             <ProfileMenu onSignOut={() => setConfirmingSignOut(true)} />
           </div>
         </div>
 
         {/* Mobile top bar — also fixed for the same reason */}
-        <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between border-b border-surface-line bg-surface/85 px-4 py-3 backdrop-blur-md md:hidden">
+        <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between border-b border-surface-line/70 bg-surface/80 px-4 py-3 backdrop-blur-xl md:hidden">
           <Wordmark className="h-9" />
           <div className="flex items-center gap-1">
             <EnableNotificationsButton />
             <NotificationsMenu />
             <ThemeToggle />
-            <button onClick={() => setConfirmingSignOut(true)} className="p-2 text-ink-500">
+            <button
+              onClick={() => setConfirmingSignOut(true)}
+              aria-label="Sign out"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-500 transition-colors hover:bg-status-expired/10 hover:text-status-expired"
+            >
               <LogOut size={18} />
             </button>
           </div>
@@ -510,7 +580,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         {/* pt-[Nrem] compensates for the now-fixed topbar height so content
             doesn't start underneath it */}
-        <div className="mx-auto max-w-6xl px-4 pt-20 pb-24 md:px-8 md:pt-24 md:pb-8">
+        <div className="mx-auto max-w-6xl px-4 pt-20 pb-28 md:px-8 md:pt-24 md:pb-10">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -526,7 +596,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         {/* Mobile floating nav — every section is reachable via horizontal scroll */}
         <nav
-          className="fixed inset-x-3 bottom-3 z-10 flex gap-1 overflow-x-auto rounded-2xl border border-surface-line bg-surface/95 px-2 py-2 shadow-glass backdrop-blur-md md:hidden"
+          className="fixed inset-x-3 bottom-3 z-10 flex gap-1 overflow-x-auto rounded-xl3 border border-surface-line bg-surface/85 px-2 py-2 shadow-float backdrop-blur-xl [&::-webkit-scrollbar]:hidden md:hidden"
           style={{ scrollbarWidth: 'none' }}
         >
           {nav.map((item) => (
@@ -536,8 +606,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
               end={item.end}
               className={({ isActive }) =>
                 clsx(
-                  'flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[10px] font-medium transition-colors',
-                  isActive ? 'bg-clinical-50 text-clinical-700' : 'text-ink-500'
+                  'flex shrink-0 flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-[10px] font-semibold transition-all duration-200',
+                  isActive
+                    ? 'bg-gradient-to-b from-clinical-500/18 to-vital-500/8 text-clinical-700 ring-1 ring-inset ring-clinical-500/25'
+                    : 'text-ink-500 active:scale-95'
                 )
               }
             >
@@ -553,6 +625,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         title="Sign out of CPVS?"
         message="You'll need to sign back in with your username and password to continue."
         confirmLabel="Sign out"
+        danger={false}
         onConfirm={handleSignOut}
         onCancel={() => setConfirmingSignOut(false)}
       />

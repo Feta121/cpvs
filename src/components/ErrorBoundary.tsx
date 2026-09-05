@@ -41,21 +41,28 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-muted px-4 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-status-expired/10 text-status-expired">
-            <AlertTriangle size={22} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-ink-900">Something went wrong loading this page.</p>
-            <p className="mx-auto mt-1 max-w-md text-xs text-ink-500">{this.state.error.message}</p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={this.handleReset} className="btn-primary">
-              <RotateCcw size={14} /> Try again
-            </button>
-            <button onClick={() => (window.location.href = '/')} className="btn-secondary">
-              Go to dashboard
-            </button>
+        <div className="flex min-h-screen items-center justify-center px-4">
+          <div className="glass-card animate-fadeUp relative w-full max-w-md overflow-hidden p-8 text-center">
+            <span className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-status-expired via-status-late to-status-expired" />
+            <span className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-status-expired/12 blur-3xl" />
+
+            <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-xl3 bg-gradient-to-br from-status-expired/25 to-status-expired/5 text-status-expired ring-1 ring-inset ring-status-expired/30">
+              <AlertTriangle size={24} strokeWidth={2.25} />
+            </div>
+            <h1 className="relative mt-5 font-display text-lg font-semibold tracking-[-0.01em] text-ink-900">
+              Something went wrong loading this page.
+            </h1>
+            <div className="inset-panel relative mt-4 p-3.5">
+              <p className="break-words font-mono text-xs leading-relaxed text-ink-500">{this.state.error.message}</p>
+            </div>
+            <div className="relative mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
+              <button onClick={this.handleReset} className="btn-primary">
+                <RotateCcw size={14} /> Try again
+              </button>
+              <button onClick={() => (window.location.href = '/')} className="btn-secondary">
+                Go to dashboard
+              </button>
+            </div>
           </div>
         </div>
       );

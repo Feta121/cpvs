@@ -85,7 +85,7 @@ export default function Select({
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-full z-40 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-surface-line bg-surface p-1 shadow-lift">
+        <div className="animate-scaleIn absolute left-0 right-0 top-full z-40 mt-2 max-h-64 origin-top overflow-y-auto rounded-xl2 border border-surface-line bg-surface p-1.5 shadow-float">
           {options.map((opt) => {
             const isSelected = opt.value === value;
             return (
@@ -97,7 +97,9 @@ export default function Select({
                   setOpen(false);
                 }}
                 className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                  isSelected ? 'bg-clinical-50 text-clinical-700' : 'text-ink-700 hover:bg-surface-muted'
+                  isSelected
+                    ? 'bg-clinical-500/12 font-medium text-clinical-700 ring-1 ring-inset ring-clinical-500/20'
+                    : 'text-ink-700 hover:bg-surface-alt hover:text-ink-900'
                 }`}
               >
                 <span className="truncate">{opt.label}</span>

@@ -1,3 +1,4 @@
+import { ShieldCheck } from 'lucide-react';
 import type { PermissionKey } from '../../types/database';
 
 export interface PermissionsValue {
@@ -96,12 +97,14 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
       aria-checked={checked}
       onClick={() => !disabled && onChange(!checked)}
       disabled={disabled}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
-        checked ? 'bg-clinical-500' : 'bg-ink-300/50'
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${
+        checked
+          ? 'bg-gradient-to-r from-clinical-500 to-clinical-600 shadow-[0_2px_10px_-2px_rgb(var(--primary-500)/0.6)]'
+          : 'bg-ink-300/40 ring-1 ring-inset ring-surface-line'
       }`}
     >
       <span
-        className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+        className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-300 ease-spring ${
           checked ? 'translate-x-5' : 'translate-x-0'
         }`}
       />
@@ -139,19 +142,25 @@ export default function PermissionsFieldset({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-xl border border-clinical-200 bg-clinical-50 p-4">
-        <div>
-          <p className="text-sm font-semibold text-clinical-700">Super Coordinator</p>
-          <p className="text-xs text-ink-500">Full access — every permission below is automatically granted.</p>
+      <div className="relative flex items-center justify-between gap-4 overflow-hidden rounded-xl2 bg-gradient-to-r from-clinical-500/14 via-clinical-500/8 to-vital-500/8 p-4 ring-1 ring-inset ring-clinical-500/25">
+        <span className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-clinical-500/18 blur-2xl" />
+        <div className="relative flex items-start gap-3">
+          <span className="icon-tile h-9 w-9 shrink-0">
+            <ShieldCheck size={17} strokeWidth={2.25} />
+          </span>
+          <div>
+            <p className="text-sm font-bold tracking-[-0.01em] text-clinical-700">Super Coordinator</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-ink-500">Full access — every permission below is automatically granted.</p>
+          </div>
         </div>
         <Toggle checked={value.is_super_coordinator} onChange={(v) => set('is_super_coordinator', v)} />
       </div>
 
       {!hideActiveToggle && (
-        <div className="flex items-center justify-between rounded-xl border border-surface-line p-4">
+        <div className="flex items-center justify-between gap-4 rounded-xl2 border border-surface-line bg-surface-alt/40 p-4">
           <div>
-            <p className="text-sm font-medium text-ink-900">Account active</p>
-            <p className="text-xs text-ink-500">Deactivating suspends all coordinator access without deleting the account.</p>
+            <p className="text-sm font-semibold text-ink-900">Account active</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-ink-500">Deactivating suspends all coordinator access without deleting the account.</p>
           </div>
           <Toggle checked={value.is_active} onChange={(v) => set('is_active', v)} />
         </div>
@@ -159,12 +168,15 @@ export default function PermissionsFieldset({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PERMISSION_GROUPS.map((group) => (
-          <div key={group.title} className="rounded-xl border border-surface-line p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">{group.title}</p>
-            <div className="space-y-2.5">
+          <div key={group.title} className="rounded-xl2 border border-surface-line bg-surface-alt/30 p-4 transition-colors duration-300 hover:border-clinical-300/60">
+            <p className="section-label mb-3.5 flex items-center gap-2">
+              {group.title}
+              <span className="h-px flex-1 bg-surface-line" />
+            </p>
+            <div className="space-y-3">
               {group.items.map((item) => (
                 <div key={item.key} className="flex items-center justify-between gap-3">
-                  <span className={`text-sm ${value.is_super_coordinator ? 'text-ink-400' : 'text-ink-700'}`}>{item.label}</span>
+                  <span className={`text-sm font-medium ${value.is_super_coordinator ? 'text-ink-400' : 'text-ink-700'}`}>{item.label}</span>
                   <Toggle
                     checked={value.is_super_coordinator || value[item.key]}
                     onChange={(v) => set(item.key, v)}

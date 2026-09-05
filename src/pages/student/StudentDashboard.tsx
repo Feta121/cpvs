@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Hospital as HospitalIcon, UserRound, Percent, CheckCircle2, Megaphone, ArrowRight, CalendarDays, Target, Award } from 'lucide-react';
+import { Hospital as HospitalIcon, UserRound, Percent, CheckCircle2, Megaphone, ArrowRight, CalendarDays, Target, Award, AlertTriangle } from 'lucide-react';
 import { differenceInCalendarDays, format, subWeeks, startOfWeek } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
+import { addisToday } from '../../utils/addisDate';
 import StatCard from '../../components/ui/StatCard';
 import DashboardBanner from '../../components/ui/DashboardBanner';
 import LiveClock from '../../components/ui/LiveClock';
@@ -51,7 +52,10 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (!student) return;
     (async () => {
-      const today = new Date().toISOString().slice(0, 10);
+      // Africa/Addis_Ababa, not UTC — `toISOString()` returned yesterday's
+      // date between midnight and 03:00 local time, so "today's attendance"
+      // on the dashboard showed the previous day's record early in the morning.
+      const today = addisToday();
 
       // FIX: this used to embed `coordinator:profiles!rotations_coordinator_id_fkey(*)`,
       // but rotations.coordinator_id references coordinators(id), not
@@ -198,33 +202,33 @@ export default function StudentDashboard() {
       <LiveClock />
       <DashboardBanner />
       {/* Personal Clinical Profile Header */}
-      <div className="glass-card flex flex-wrap items-center gap-5 p-6">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-vital-100 text-2xl font-semibold text-vital-700">
+      <div className="glass-card relative flex flex-wrap items-center gap-5 overflow-hidden p-6">
+        <span className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-vital-500 via-clinical-500 to-transparent" />
+        <span className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-clinical-500/10 blur-3xl" />
+        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-vital-400 to-clinical-500 text-2xl font-bold text-onAccent shadow-glow-accent ring-2 ring-surface">
           {profile?.photo_url ? (
             <img src={profile.photo_url} alt={profile.full_name} className="h-full w-full object-cover" />
           ) : (
             profile?.full_name?.[0]?.toUpperCase()
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="font-display text-xl font-semibold text-ink-900">{profile?.full_name}</h1>
-          <p className="text-sm text-ink-500">
+        <div className="relative min-w-0 flex-1">
+          <h1 className="font-display text-2xl font-semibold tracking-tightest text-ink-900">{profile?.full_name}</h1>
+          <p className="mt-0.5 text-sm text-ink-500">
             {student?.program ?? student?.department} · Year {student?.year} · Batch {student?.batch}
           </p>
         </div>
-        <div className="flex flex-wrap gap-6 text-center">
-          <div>
-            <p className="font-display text-lg font-semibold text-ink-900">{rotation?.hospital?.name ?? '—'}</p>
-            <p className="text-xs text-ink-300">Current rotation</p>
-          </div>
-          <div>
-            <p className="font-display text-lg font-semibold text-ink-900">{rotationProgress?.completed ?? '—'}</p>
-            <p className="text-xs text-ink-300">Days completed</p>
-          </div>
-          <div>
-            <p className="font-display text-lg font-semibold text-ink-900">{attendancePct !== null ? `${attendancePct}%` : '—'}</p>
-            <p className="text-xs text-ink-300">Attendance</p>
-          </div>
+        <div className="relative flex flex-wrap gap-2.5">
+          {[
+            { value: rotation?.hospital?.name ?? '—', label: 'Current rotation' },
+            { value: rotationProgress?.completed ?? '—', label: 'Days completed' },
+            { value: attendancePct !== null ? `${attendancePct}%` : '—', label: 'Attendance' },
+          ].map((s) => (
+            <div key={s.label} className="min-w-[7rem] rounded-xl2 bg-surface-alt/60 px-4 py-2.5 text-center ring-1 ring-inset ring-surface-line">
+              <p className="truncate font-display text-lg font-semibold tabular-nums text-ink-900">{s.value}</p>
+              <p className="section-label mt-0.5">{s.label}</p>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -241,61 +245,74 @@ export default function StudentDashboard() {
       </div>
 
       {student?.late_attendance_concern && (
-        <div className="rounded-xl2 border border-status-verylate/30 bg-status-verylate/5 px-5 py-4 text-sm text-status-verylate">
-          You've been flagged with a <strong>Late Attendance Concern</strong> for this rotation. Please speak with your coordinator.
+        <div className="relative flex items-start gap-3 overflow-hidden rounded-xl2 bg-status-verylate/8 px-5 py-4 text-sm text-status-verylate ring-1 ring-inset ring-status-verylate/30">
+          <span className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-status-verylate" />
+          <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-status-verylate/15">
+            <AlertTriangle size={14} strokeWidth={2.5} />
+          </span>
+          <p className="leading-relaxed">
+            You've been flagged with a <strong className="font-bold">Late Attendance Concern</strong> for this rotation. Please speak with your coordinator.
+          </p>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Clinical Progress Ring + Rotation Information */}
-        <div className="surface-card p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <Target size={16} className="text-clinical-600" />
-            <h2 className="font-display text-base font-semibold text-ink-900">Clinical progress</h2>
+        <div className="surface-card card-hover p-6">
+          <div className="mb-5 flex items-center gap-2.5">
+            <span className="icon-tile h-8 w-8 rounded-lg">
+              <Target size={15} strokeWidth={2.5} />
+            </span>
+            <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">Clinical progress</h2>
           </div>
           {rotationProgress && rotationProgress.required > 0 ? (
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-5">
               <ProgressRing
                 percentage={(rotationProgress.completed / rotationProgress.required) * 100}
                 label="Days completed"
                 sublabel={`${rotationProgress.completed} of ${rotationProgress.required}`}
               />
-              <div className="w-full space-y-1.5 border-t border-surface-line pt-4 text-sm">
-                <div className="flex justify-between"><span className="text-ink-500">Hospital</span><span className="font-medium text-ink-900">{rotation?.hospital?.name}</span></div>
-                <div className="flex justify-between"><span className="text-ink-500">Period</span><span className="font-medium text-ink-900">{rotation?.start_date} → {rotation?.end_date}</span></div>
-                <div className="flex justify-between"><span className="text-ink-500">Remaining</span><span className="font-medium text-ink-900">{remainingDays} day{remainingDays === 1 ? '' : 's'}</span></div>
+              <div className="inset-panel w-full space-y-2 p-4 text-sm">
+                <div className="flex items-center justify-between gap-3"><span className="text-ink-500">Hospital</span><span className="truncate font-semibold text-ink-900">{rotation?.hospital?.name}</span></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-ink-500">Period</span><span className="font-semibold tabular-nums text-ink-900">{rotation?.start_date} → {rotation?.end_date}</span></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-ink-500">Remaining</span><span className="font-semibold tabular-nums text-clinical-600">{remainingDays} day{remainingDays === 1 ? '' : 's'}</span></div>
               </div>
             </div>
           ) : (
-            <p className="py-6 text-center text-sm text-ink-300">No active rotation assigned yet — ask your coordinator.</p>
+            <p className="rounded-xl2 border border-dashed border-surface-line py-8 text-center text-sm text-ink-400">No active rotation assigned yet — ask your coordinator.</p>
           )}
         </div>
 
-        <div className="surface-card lg:col-span-2 p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-base font-semibold text-ink-900">Today's check-in</h2>
-            <Link to="/student/attendance" className="flex items-center gap-1 text-sm font-medium text-clinical-600 hover:text-clinical-700">
-              Go to check-in <ArrowRight size={14} />
+        <div className="surface-card card-hover lg:col-span-2 p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="icon-tile-accent h-8 w-8 rounded-lg">
+                <CheckCircle2 size={15} strokeWidth={2.5} />
+              </span>
+              <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">Today's check-in</h2>
+            </div>
+            <Link to="/student/attendance" className="group flex items-center gap-1.5 text-sm font-semibold text-clinical-600 transition-colors hover:text-clinical-700">
+              Go to check-in <ArrowRight size={14} className="transition-transform duration-300 ease-spring group-hover:translate-x-1" />
             </Link>
           </div>
           {todayRecord ? (
-            <div className="flex items-center gap-3">
+            <div className="inset-panel flex flex-wrap items-center gap-3 p-4">
               <Badge tone={todayRecord.status === 'present' ? 'present' : todayRecord.status === 'late' ? 'late' : todayRecord.status === 'very_late' ? 'verylate' : 'expired'} dot>
                 {todayRecord.status.replace('_', ' ')}
               </Badge>
               <span className="text-sm text-ink-500">
-                Checked in at {todayRecord.check_in_time ? new Date(todayRecord.check_in_time).toLocaleTimeString() : '—'}
+                Checked in at <span className="font-semibold tabular-nums text-ink-700">{todayRecord.check_in_time ? new Date(todayRecord.check_in_time).toLocaleTimeString() : '—'}</span>
               </span>
             </div>
           ) : (
-            <p className="text-sm text-ink-500">You haven't checked in yet today. Head to the check-in page when you arrive at your hospital.</p>
+            <p className="rounded-xl2 border border-dashed border-surface-line p-4 text-sm leading-relaxed text-ink-500">You haven't checked in yet today. Head to the check-in page when you arrive at your hospital.</p>
           )}
 
           {/* Personal Analytics: attendance trend */}
           <div className="mt-6 border-t border-surface-line pt-5">
-            <div className="mb-2 flex items-center gap-2">
-              <CalendarDays size={14} className="text-ink-500" />
-              <p className="text-sm font-medium text-ink-700">Attendance trend — last {WEEKS_OF_TREND} weeks</p>
+            <div className="mb-3 flex items-center gap-2">
+              <CalendarDays size={14} className="text-clinical-600" />
+              <p className="section-label">Attendance trend — last {WEEKS_OF_TREND} weeks</p>
             </div>
             <AttendanceTrendChart data={trend} height={180} />
           </div>
@@ -304,39 +321,58 @@ export default function StudentDashboard() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Personal Analytics: punctuality ring */}
-        <div className="surface-card flex flex-col items-center justify-center p-6">
-          <h2 className="mb-4 self-start font-display text-base font-semibold text-ink-900">Punctuality</h2>
+        <div className="surface-card card-hover flex flex-col items-center p-6">
+          <div className="mb-5 flex w-full items-center gap-2.5">
+            <span className="icon-tile-accent h-8 w-8 rounded-lg">
+              <Percent size={15} strokeWidth={2.5} />
+            </span>
+            <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">Punctuality</h2>
+          </div>
           {punctualityPct !== null ? (
-            <ProgressRing percentage={punctualityPct} tone="vital" label="On-time check-ins" size={120} strokeWidth={10} />
+            <div className="flex flex-1 items-center justify-center">
+              <ProgressRing percentage={punctualityPct} tone="vital" label="On-time check-ins" size={120} strokeWidth={10} />
+            </div>
           ) : (
-            <p className="py-6 text-center text-sm text-ink-300">No check-ins recorded yet.</p>
+            <p className="w-full rounded-xl2 border border-dashed border-surface-line py-8 text-center text-sm text-ink-400">No check-ins recorded yet.</p>
           )}
         </div>
 
         {/* Achievement System */}
-        <div className="surface-card lg:col-span-2 p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <Award size={16} className="text-clinical-600" />
-            <h2 className="font-display text-base font-semibold text-ink-900">Achievements</h2>
+        <div className="surface-card card-hover lg:col-span-2 p-6">
+          <div className="mb-5 flex items-center gap-2.5">
+            <span className="icon-tile h-8 w-8 rounded-lg">
+              <Award size={15} strokeWidth={2.5} />
+            </span>
+            <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">Achievements</h2>
           </div>
           <AchievementBadges achievements={achievements} />
         </div>
       </div>
 
-      <div className="surface-card p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Megaphone size={16} className="text-clinical-600" />
-          <h2 className="font-display text-base font-semibold text-ink-900">Announcements</h2>
+      <div className="surface-card card-hover p-6">
+        <div className="mb-5 flex items-center gap-2.5">
+          <span className="icon-tile h-8 w-8 rounded-lg">
+            <Megaphone size={15} strokeWidth={2.5} />
+          </span>
+          <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">Announcements</h2>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {announcements.length === 0 && <p className="text-sm text-ink-500">No announcements yet.</p>}
+          {announcements.length === 0 && (
+            <p className="rounded-xl2 border border-dashed border-surface-line py-6 text-center text-sm text-ink-400 sm:col-span-3">No announcements yet.</p>
+          )}
           {announcements.map((a) => (
-            <div key={a.id} className="rounded-xl border border-surface-line p-3">
-              <div className="flex items-center gap-2">
+            <div
+              key={a.id}
+              className="group relative overflow-hidden rounded-xl2 border border-surface-line bg-surface-alt/40 p-4 transition-all duration-300 ease-spring hover:-translate-y-0.5 hover:border-transparent hover:bg-surface hover:shadow-lift"
+            >
+              <span
+                className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${a.type === 'emergency' ? 'bg-status-expired' : 'bg-gradient-to-b from-clinical-500 to-vital-500'}`}
+              />
+              <div className="flex flex-wrap items-center gap-2">
                 {a.type === 'emergency' && <Badge tone="expired">Urgent</Badge>}
-                <p className="text-sm font-medium text-ink-900">{a.title}</p>
+                <p className="text-sm font-semibold text-ink-900">{a.title}</p>
               </div>
-              <p className="mt-1 line-clamp-2 text-xs text-ink-500">{a.content}</p>
+              <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-ink-500">{a.content}</p>
             </div>
           ))}
         </div>

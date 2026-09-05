@@ -1,0 +1,254 @@
+-- ============================================================================
+-- EMERGENCY ROLLBACK for migrations 0015 and 0016
+--
+-- READ THIS FIRST — you probably do NOT need the whole file.
+--
+-- This is a set of separate, independent first-aid sections. Each one is
+-- labelled with the SYMPTOM it fixes. Find the section that matches what your
+-- students are actually reporting, copy JUST that section into the Supabase
+-- SQL Editor, and run it. Running only what you need means you keep every
+-- other security fix in place.
+--
+-- Only use PART F (the full revert) if the app is badly broken and you cannot
+-- tell which change caused it. PART F deliberately reopens two serious
+-- security holes, and it says so where it happens.
+--
+-- HOW TO USE THIS FILE
+--   1. Open your project at https://supabase.com/dashboard
+--   2. Click "SQL Editor" in the left sidebar
+--   3. Click "New query"
+--   4. Copy one PART from this file, paste it in, click "Run"
+--
+-- Nothing in this file deletes any data. It only changes permissions.
+--
+-- After using any part of this file, tell whoever maintains the code which
+-- part you ran and what the symptom was — the underlying problem still needs
+-- a proper fix, and this file is a tourniquet, not a treatment.
+-- ============================================================================
+
+
+-- ============================================================================
+-- PART A — "Students cannot check in. They get a permissions error."
+--
+-- BY FAR the most likely problem, and it is almost always the same cause:
+-- migration 0016 was applied but the updated app was not deployed yet, so the
+-- students' phones are still running the old code that writes to the table
+-- directly. 0016 took that permission away.
+--
+-- THE BETTER FIX IS TO DEPLOY THE NEW APP BUILD. Do that first if you can —
+-- it takes minutes and you keep the protection. Use this section only if the
+-- deploy is not possible right now and students are standing in the hospital
+-- unable to check in.
+--
+-- ⚠ What you are giving up: with this section applied, the browser decides
+-- whether a student is 'present', where they were, and what time it was. A
+-- student who knows how to use their phone's developer tools, or a free
+-- location-spoofing app, can mark themselves present from home. The
+-- biometric requirement from migration 0014 (fingerprint/Face ID/selfie)
+-- still applies below — this restores the ORIGINAL migration 0014 shape of
+-- the policy (verification pass required), not the fully-open one that
+-- predates it, so that gate is not lost as part of this rollback. Put the
+-- new build out and then re-run migration 0016.
+-- ============================================================================
+
+-- grant insert on attendance to authenticated;
+--
+-- drop policy if exists "attendance_insert_own" on attendance;
+-- create policy "attendance_insert_own" on attendance
+--   for insert with check (
+--     student_id = auth.uid()
+--     and exists (
+--       select 1 from students s
+--       where s.id = auth.uid()
+--         and s.checkin_verification_pass_expires is not null
+--         and s.checkin_verification_pass_expires > now()
+--     )
+--   );
+--
+-- drop policy if exists "attendance_update_coordinator" on attendance;
+-- drop policy if exists "attendance_update_own_or_coordinator" on attendance;
+-- create policy "attendance_update_own_or_coordinator" on attendance
+--   for update
+--   using (
+--     student_id = auth.uid()
+--     or has_permission('can_manage_attendance')
+--     or has_permission('can_review_appeals')
+--   )
+--   with check (
+--     student_id = auth.uid()
+--     or has_permission('can_manage_attendance')
+--     or has_permission('can_review_appeals')
+--   );
+
+-- (Everything above is commented out with `--` so it cannot run by accident.
+--  To use it: select those lines, and in VS Code press Ctrl+/ to uncomment
+--  them — or just delete the `-- ` from the start of each line by hand
+--  before pasting into the SQL Editor.)
+
+
+-- ============================================================================
+-- PART B — "Students cannot check OUT" or
+--          "Someone gets 'Attendance records cannot be edited' when they
+--           shouldn't"
+--
+-- This removes the attendance tamper-guard trigger from migration 0015. The
+-- RLS policy still applies; you are only removing the extra row-level check.
+--
+-- ⚠ What you are giving up: a student can edit their own attendance row —
+-- change 'absent' to 'present', or rewrite their check-in time and GPS
+-- coordinates. If you are also running migration 0016 (server-side check-in),
+-- students have no UPDATE permission at all, so this is much less dangerous
+-- than it sounds — the trigger is a second layer, not the only one.
+-- ============================================================================
+
+-- drop trigger if exists trg_prevent_student_attendance_tamper on attendance;
+
+
+-- ============================================================================
+-- PART C — "Nobody can change their password" or
+--          "Saving a profile photo fails with a role error"
+--
+-- Removes the profiles role-pinning trigger from migration 0015.
+--
+-- ⚠ What you are giving up: any logged-in student can set their own account
+-- role to 'coordinator'. Combined with the coordinator table hole, that would
+-- give them read access to every student's records. Re-apply migration 0015
+-- as soon as the real cause is found.
+-- ============================================================================
+
+-- drop trigger if exists trg_prevent_self_role_change on profiles;
+
+
+-- ============================================================================
+-- PART D — "A coordinator cannot log in" or
+--          "The coordinators page is empty / errors"
+--
+-- Restores the original, wide-open read policy on the coordinators table.
+--
+-- ⚠ What you are giving up: every logged-in student can read the coordinators
+-- table, including each coordinator's `login_email` — which is the username
+-- coordinators sign in with.
+-- ============================================================================
+
+-- drop policy if exists "coordinators_select" on coordinators;
+-- create policy "coordinators_select" on coordinators
+--   for select using (auth.uid() is not null);
+
+
+-- ============================================================================
+-- PART E — "Announcements / appeal decisions / exception notices are not
+--           reaching students"
+--
+-- Restores the original notification insert policy.
+--
+-- ⚠ What you are giving up: any logged-in user can write a notification into
+-- any other user's inbox — for example a fake "Your appeal was approved"
+-- message that looks like it came from the system.
+-- ============================================================================
+
+-- drop policy if exists "notifications_insert_coordinator" on notifications;
+-- drop policy if exists "notifications_insert_system" on notifications;
+-- create policy "notifications_insert_system" on notifications
+--   for insert with check (true);
+--
+-- drop trigger if exists trg_prevent_notification_tamper on notifications;
+
+
+-- ============================================================================
+-- PART F — FULL REVERT (last resort)
+--
+-- Puts the database back to how it behaved before migrations 0015 and 0016,
+-- except for two things that are NOT restored on purpose (see the note at the
+-- end). Use this only if the app is broken and you cannot work out which
+-- change did it.
+--
+-- ⚠⚠ THIS REOPENS REAL SECURITY HOLES. After running it, any student who
+-- clears the migration 0014 biometric check (still enforced below, since
+-- that migration is untouched by this rollback) can:
+--      * mark themselves present from anywhere, at any time, for any date
+--      * change their own account role to 'coordinator'
+--      * post notifications into anyone's inbox
+--      * read every other student's appeal attachments
+--    Treat the system as untrustworthy until the migrations go back on.
+--
+-- To use it, select everything from the line below down to the end of the
+-- file, press Ctrl+/ in VS Code to uncomment it, then paste it into the
+-- Supabase SQL Editor.
+-- ============================================================================
+
+-- -- attendance: restore direct student writes (still gated on the
+-- -- migration 0014 biometric verification pass — see PART A above for why)
+-- grant insert on attendance to authenticated;
+-- drop policy if exists "attendance_insert_own" on attendance;
+-- create policy "attendance_insert_own" on attendance
+--   for insert with check (
+--     student_id = auth.uid()
+--     and exists (
+--       select 1 from students s
+--       where s.id = auth.uid()
+--         and s.checkin_verification_pass_expires is not null
+--         and s.checkin_verification_pass_expires > now()
+--     )
+--   );
+--
+-- drop policy if exists "attendance_update_coordinator" on attendance;
+-- drop policy if exists "attendance_update_own_or_coordinator" on attendance;
+-- create policy "attendance_update_own_or_coordinator" on attendance
+--   for update using (student_id = auth.uid() or has_permission('can_manage_attendance'));
+--
+-- -- profiles: restore the original update policy
+-- drop policy if exists "profiles_update_own" on profiles;
+-- create policy "profiles_update_own" on profiles
+--   for update using (id = auth.uid());
+--
+-- -- coordinators: restore the original read policy
+-- drop policy if exists "coordinators_select" on coordinators;
+-- create policy "coordinators_select" on coordinators
+--   for select using (auth.uid() is not null);
+--
+-- -- notifications: restore the original insert policy
+-- drop policy if exists "notifications_insert_coordinator" on notifications;
+-- drop policy if exists "notifications_insert_system" on notifications;
+-- create policy "notifications_insert_system" on notifications
+--   for insert with check (true);
+-- drop policy if exists "notifications_update_own" on notifications;
+-- create policy "notifications_update_own" on notifications
+--   for update using (user_id = auth.uid());
+--
+-- -- appeals: restore the original review policy
+-- drop policy if exists "appeals_update_coordinator" on appeals;
+-- create policy "appeals_update_coordinator" on appeals
+--   for update using (has_permission('can_review_appeals'));
+--
+-- -- storage: restore the original appeal-file policies
+-- drop policy if exists "appeal_files_owner_upload" on storage.objects;
+-- drop policy if exists "appeal_files_owner_read" on storage.objects;
+-- create policy "appeal_files_student_upload" on storage.objects
+--   for insert with check (bucket_id = 'appeal-files' and auth.uid() is not null);
+-- create policy "appeal_files_read" on storage.objects
+--   for select using (bucket_id = 'appeal-files' and auth.uid() is not null);
+--
+-- -- remove all four guard triggers
+-- drop trigger if exists trg_prevent_student_attendance_tamper on attendance;
+-- drop trigger if exists trg_prevent_self_role_change on profiles;
+-- drop trigger if exists trg_prevent_notification_tamper on notifications;
+-- drop trigger if exists trg_prevent_self_permission_change on coordinators;
+
+
+-- ============================================================================
+-- TWO THINGS THIS FILE DELIBERATELY DOES NOT RESTORE
+--
+-- 1. `coordinators_write_self` — the policy that let any logged-in student
+--    insert themselves into the coordinators table as a Super Coordinator,
+--    taking over the entire system with one request. Your app has never
+--    used this policy for anything: every legitimate coordinator write goes
+--    through the update_coordinator_permissions function or an Edge Function.
+--    Restoring it could not fix a real problem, so it is not offered.
+--
+-- 2. The `profile-photos` storage bucket. Migration 0015 created it because
+--    the app has always tried to upload there and the bucket did not exist.
+--    Removing it would only put a broken feature back.
+--
+-- If you believe you genuinely need either of these, that is a sign something
+-- else is wrong — get someone to look at the actual error message first.
+-- ============================================================================

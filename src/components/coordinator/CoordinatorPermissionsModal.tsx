@@ -78,29 +78,29 @@ export default function CoordinatorPermissionsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose}>
       <div
-        className="surface-card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6"
+        className="modal-panel max-h-[90vh] max-w-2xl overflow-y-auto p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-clinical-50 text-clinical-600">
-              <ShieldCheck size={18} />
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3.5">
+            <div className="icon-tile h-11 w-11 shrink-0 rounded-xl2">
+              <ShieldCheck size={19} strokeWidth={2.25} />
             </div>
             <div>
-              <h2 className="font-display text-lg font-semibold text-ink-900">Permissions — {fullName}</h2>
-              <p className="text-sm text-ink-500">Changes take effect immediately.</p>
+              <h2 className="font-display text-lg font-semibold tracking-[-0.01em] text-ink-900">Permissions — {fullName}</h2>
+              <p className="mt-0.5 text-sm text-ink-500">Changes take effect immediately.</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-ink-300 hover:text-ink-500">
-            <X size={18} />
+          <button onClick={onClose} className="btn-icon h-8 w-8" aria-label="Close">
+            <X size={16} />
           </button>
         </div>
 
         <PermissionsFieldset value={value} onChange={setValue} />
 
-        <div className="mt-6 flex gap-2">
+        <div className="mt-6 flex gap-2.5">
           <button onClick={handleSave} disabled={saving} className="btn-primary">
             {saving ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
             Save permissions

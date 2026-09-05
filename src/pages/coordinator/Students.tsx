@@ -163,7 +163,7 @@ export default function CoordinatorStudents() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900">Students</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tightest text-ink-900">Students</h1>
           <p className="mt-1 text-sm text-ink-500">Manage student accounts and clinical status.</p>
         </div>
         <div className="flex flex-wrap gap-2">

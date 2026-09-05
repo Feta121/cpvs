@@ -50,47 +50,54 @@ export default function AttachmentViewerModal({ path, onClose }: Props) {
   const fileName = path.split('/').pop() ?? 'attachment';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose}>
       <div
-        className="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-xl2 bg-surface shadow-glass"
+        className="modal-panel max-h-[85vh] max-w-3xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-surface-line px-5 py-3.5">
-          <p className="truncate text-sm font-medium text-ink-900">{fileName}</p>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3 border-b border-surface-line px-5 py-3.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="icon-tile h-8 w-8 rounded-lg">
+              <FileText size={15} strokeWidth={2.25} />
+            </span>
+            <p className="truncate text-sm font-semibold text-ink-900">{fileName}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             {signedUrl && (
-              <a href={signedUrl} download={fileName} className="btn-secondary !py-1.5 !px-3">
+              <a href={signedUrl} download={fileName} className="btn-secondary !px-3 !py-1.5">
                 <Download size={14} /> Download
               </a>
             )}
-            <button onClick={onClose} className="text-ink-300 hover:text-ink-500">
-              <X size={18} />
+            <button onClick={onClose} className="btn-icon h-8 w-8" aria-label="Close">
+              <X size={16} />
             </button>
           </div>
         </div>
 
         <div className="flex min-h-[300px] items-center justify-center p-4">
-          {loading && <Loader2 size={24} className="animate-spin text-ink-300" />}
+          {loading && <Loader2 size={24} className="animate-spin text-clinical-500" />}
 
           {!loading && error && (
-            <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <AlertTriangle size={22} className="text-status-expired" />
-              <p className="text-sm text-ink-500">{error}</p>
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl3 bg-gradient-to-br from-status-expired/25 to-status-expired/5 text-status-expired ring-1 ring-inset ring-status-expired/30">
+                <AlertTriangle size={21} strokeWidth={2.25} />
+              </span>
+              <p className="max-w-sm text-sm leading-relaxed text-ink-500">{error}</p>
             </div>
           )}
 
           {!loading && !error && signedUrl && isImage && (
-            <img src={signedUrl} alt={fileName} className="max-h-[70vh] w-auto rounded-lg object-contain" />
+            <img src={signedUrl} alt={fileName} className="max-h-[70vh] w-auto rounded-xl2 object-contain shadow-lift" />
           )}
 
           {!loading && !error && signedUrl && isPdf && (
-            <iframe src={signedUrl} title={fileName} className="h-[70vh] w-full rounded-lg border border-surface-line" />
+            <iframe src={signedUrl} title={fileName} className="h-[70vh] w-full rounded-xl2 border border-surface-line" />
           )}
 
           {!loading && !error && signedUrl && !isImage && !isPdf && (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-clinical-50 text-clinical-600">
-                <FileText size={22} />
+            <div className="flex flex-col items-center gap-3.5 py-8 text-center">
+              <div className="icon-tile h-14 w-14 rounded-xl3">
+                <FileText size={24} strokeWidth={2.25} />
               </div>
               <p className="text-sm text-ink-700">This file type can't be previewed in-browser.</p>
               <a href={signedUrl} download={fileName} className="btn-primary">

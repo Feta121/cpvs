@@ -5,13 +5,14 @@ export function SkeletonBlock({ className = '' }: { className?: string }) {
 /** Skeleton matching StatCard's shape — used while dashboard stats load. */
 export function SkeletonStatCard() {
   return (
-    <div className="glass-card p-5">
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
-          <SkeletonBlock className="h-3 w-24" />
-          <SkeletonBlock className="h-7 w-16" />
+    <div className="glass-card relative overflow-hidden p-5">
+      <span className="absolute inset-x-0 top-0 h-[3px] bg-surface-line" />
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-3">
+          <SkeletonBlock className="h-2.5 w-24" />
+          <SkeletonBlock className="h-8 w-16" />
         </div>
-        <SkeletonBlock className="h-10 w-10 rounded-xl" />
+        <SkeletonBlock className="h-11 w-11 rounded-xl2" />
       </div>
     </div>
   );

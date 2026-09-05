@@ -40,6 +40,7 @@ export interface Student {
   status: StudentStatus;
   late_attendance_concern: boolean;
   created_at: string;
+  /** Added in migration 0014 (biometric check-in verification). */
   verification_method: 'webauthn' | 'selfie' | null;
   reference_face_descriptor: number[] | null;
   reference_selfie_url: string | null;

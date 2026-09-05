@@ -27,3 +27,9 @@ android/captures/
 
 # Logs
 *.log
+
+# Supabase local files
+supabase/.temp/
+
+# TypeScript build info
+*.tsbuildinfo

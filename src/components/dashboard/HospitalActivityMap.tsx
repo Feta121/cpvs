@@ -44,34 +44,51 @@ export default function HospitalActivityMap({ hospitals }: { hospitals: Hospital
   }, [preference]);
 
   return (
-    <div className="isolate overflow-hidden rounded-xl border border-surface-line">
-      <MapContainer center={ADDIS_CENTER} zoom={11} style={{ height: '320px', width: '100%' }} scrollWheelZoom={false}>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {withCoords.map((h) => {
-          const total = h.activeNow + h.checkedOutToday;
-          const radius = 8 + Math.min(20, total * 2);
-          const color = h.activeNow > 0 ? colors.active : colors.inactive;
-          return (
-            <CircleMarker
-              key={h.hospitalId}
-              center={[h.latitude, h.longitude]}
-              radius={radius}
-              pathOptions={{ color, fillColor: color, fillOpacity: 0.35, weight: 2 }}
-            >
-              <LeafletTooltip direction="top" offset={[0, -radius]} permanent={false}>
-                <div className="text-xs">
-                  <strong>{h.name}</strong>
-                  <br />
-                  {h.activeNow} on-site now · {h.checkedOutToday} checked out today
-                </div>
-              </LeafletTooltip>
-            </CircleMarker>
-          );
-        })}
-      </MapContainer>
+    <div className="relative isolate overflow-hidden rounded-xl2 border border-surface-line shadow-card">
+      {/* map-shell-dark inverts ONLY Leaflet's tile pane (see index.css) so
+          the bright OpenStreetMap raster stops fighting the dark/Aether
+          palettes. Markers and tooltips are already themed, so they're
+          deliberately left outside that filter. */}
+      <div className={preference === 'light' ? '' : 'map-shell-dark'}>
+        <MapContainer center={ADDIS_CENTER} zoom={11} style={{ height: '320px', width: '100%' }} scrollWheelZoom={false}>
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {withCoords.map((h) => {
+            const total = h.activeNow + h.checkedOutToday;
+            const radius = 8 + Math.min(20, total * 2);
+            const color = h.activeNow > 0 ? colors.active : colors.inactive;
+            return (
+              <CircleMarker
+                key={h.hospitalId}
+                center={[h.latitude, h.longitude]}
+                radius={radius}
+                pathOptions={{ color, fillColor: color, fillOpacity: 0.35, weight: 2 }}
+              >
+                <LeafletTooltip direction="top" offset={[0, -radius]} permanent={false}>
+                  <div className="text-xs">
+                    <strong>{h.name}</strong>
+                    <br />
+                    {h.activeNow} on-site now · {h.checkedOutToday} checked out today
+                  </div>
+                </LeafletTooltip>
+              </CircleMarker>
+            );
+          })}
+        </MapContainer>
+      </div>
+
+      {/* Legend — floats over the map so the marker colors are decodable
+          without hovering every circle. */}
+      <div className="pointer-events-none absolute left-3 top-3 z-[400] flex flex-col gap-1.5 rounded-xl border border-surface-line bg-surface/85 px-3 py-2.5 shadow-card backdrop-blur-md">
+        <span className="flex items-center gap-2 text-[11px] font-semibold text-ink-700">
+          <span className="live-dot" /> Students on-site now
+        </span>
+        <span className="flex items-center gap-2 text-[11px] font-medium text-ink-500">
+          <span className="h-1.5 w-1.5 rounded-full bg-ink-300" /> No one checked in
+        </span>
+      </div>
     </div>
   );
 }

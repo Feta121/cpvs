@@ -14,6 +14,16 @@ const iconMap = {
   late_concern: AlertTriangle,
 };
 
+/** Purely presentational tint per notification type — keyed off the same
+ * `n.type` the icon map already uses, so the two can't drift apart. */
+const toneMap: Record<keyof typeof iconMap, string> = {
+  attendance_warning: 'bg-status-verylate/12 text-status-verylate ring-status-verylate/25',
+  appeal_result: 'bg-vital-500/12 text-vital-600 ring-vital-500/25',
+  rotation_update: 'bg-clinical-500/12 text-clinical-600 ring-clinical-500/25',
+  announcement: 'bg-clinical-500/12 text-clinical-600 ring-clinical-500/25',
+  late_concern: 'bg-status-late/12 text-status-late ring-status-late/25',
+};
+
 export default function CoordinatorNotifications() {
   const { profile } = useAuth();
   const [items, setItems] = useState<NotificationRow[]>([]);
@@ -44,32 +54,47 @@ export default function CoordinatorNotifications() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-ink-900">Notifications</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tightest text-ink-900">Notifications</h1>
         <p className="mt-1 text-sm text-ink-500">Flagged students, appeal submissions, and system alerts.</p>
       </div>
 
       {items.length === 0 && (
-        <div className="surface-card p-8 text-center text-sm text-ink-500">
-          <Bell className="mx-auto mb-2 text-ink-300" size={24} />
-          You're all caught up.
+        <div className="surface-card p-10 text-center">
+          <div className="icon-tile mx-auto mb-4 h-14 w-14 rounded-xl3">
+            <Bell size={24} strokeWidth={2.25} />
+          </div>
+          <p className="font-display text-lg font-semibold tracking-[-0.01em] text-ink-900">You're all caught up.</p>
+          <p className="mt-1 text-sm text-ink-500">New notifications will appear here.</p>
         </div>
       )}
 
       {grouped.map(([dayLabel, dayItems]) => (
-        <div key={dayLabel} className="space-y-2">
-          <p className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-300">{dayLabel}</p>
-          <div className="surface-card divide-y divide-surface-line">
+        <div key={dayLabel} className="space-y-2.5">
+          <p className="section-label flex items-center gap-2.5 px-1">
+            {dayLabel}
+            <span className="hairline flex-1" />
+          </p>
+          <div className="surface-card divide-y divide-surface-line overflow-hidden">
             {dayItems.map((n) => {
               const Icon = iconMap[n.type];
               return (
-                <div key={n.id} className={`flex gap-3 p-4 ${!n.is_read ? 'bg-clinical-50/40' : ''}`}>
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-clinical-50 text-clinical-600">
-                    <Icon size={15} />
+                <div
+                  key={n.id}
+                  className={`relative flex gap-3.5 p-4 transition-colors duration-300 hover:bg-surface-muted/60 ${
+                    !n.is_read ? 'bg-clinical-500/[0.05]' : ''
+                  }`}
+                >
+                  {!n.is_read && <span className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-clinical-500 to-vital-500" />}
+                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${toneMap[n.type]}`}>
+                    <Icon size={16} strokeWidth={2.25} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-ink-900">{n.title}</p>
-                    <p className="mt-0.5 text-sm text-ink-500">{n.message}</p>
-                    <p className="mt-1 text-xs text-ink-300">{new Date(n.created_at).toLocaleTimeString()}</p>
+                    <div className="flex items-start gap-2">
+                      <p className="text-sm font-semibold text-ink-900">{n.title}</p>
+                      {!n.is_read && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-clinical-500" />}
+                    </div>
+                    <p className="mt-0.5 text-sm leading-relaxed text-ink-500">{n.message}</p>
+                    <p className="mt-1.5 text-2xs font-medium uppercase tracking-wider tabular-nums text-ink-400">{new Date(n.created_at).toLocaleTimeString()}</p>
                   </div>
                 </div>
               );

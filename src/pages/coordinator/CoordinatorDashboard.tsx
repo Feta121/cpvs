@@ -6,6 +6,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
+import { addisToday } from '../../utils/addisDate';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import StatCard from '../../components/ui/StatCard';
 import DashboardBanner from '../../components/ui/DashboardBanner';
@@ -56,7 +57,10 @@ export default function CoordinatorDashboard() {
 
   async function loadData() {
     setLoading(true);
-    const today = new Date().toISOString().slice(0, 10);
+    // Africa/Addis_Ababa, not UTC — `toISOString()` returned yesterday's date
+    // between midnight and 03:00 local time, so the "today" counts on this
+    // dashboard were a day behind for anyone looking early in the morning.
+    const today = addisToday();
 
     // CHANGED: was 10 sequential `await`s in a row — each one is its own
     // network round-trip to Supabase, and none of them actually needed
@@ -375,7 +379,7 @@ export default function CoordinatorDashboard() {
       <DashboardBanner />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-ink-900">Coordinator overview</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tightest text-ink-900">Coordinator overview</h1>
           <p className="mt-1 text-sm text-ink-500">Today's snapshot across your assigned students.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -421,13 +425,20 @@ export default function CoordinatorDashboard() {
       {/* Proof the automatic (cron-scheduled) absence check is actually
           running, not just theoretically correct — turns red/stale if the
           cron job from supabase/cron.sql isn't actually scheduled. */}
-      <div className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs ${
+      <div className={`relative flex items-center gap-2 overflow-hidden rounded-xl2 px-4 py-3 text-xs leading-relaxed ring-1 ring-inset ${
         !lastRun.at
-          ? 'border-status-verylate/30 bg-status-verylate/5 text-status-verylate'
+          ? 'bg-status-verylate/8 text-status-verylate ring-status-verylate/30'
           : Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000
-          ? 'border-status-expired/30 bg-status-expired/5 text-status-expired'
-          : 'border-vital-200 bg-vital-50 text-vital-700'
+          ? 'bg-status-expired/8 text-status-expired ring-status-expired/30'
+          : 'bg-status-present/8 text-status-present ring-status-present/30'
       }`}>
+        <span className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${
+          !lastRun.at
+            ? 'bg-status-verylate'
+            : Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000
+            ? 'bg-status-expired'
+            : 'bg-status-present'
+        }`} />
         {!lastRun.at ? (
           <>⚠ Automatic absence check has never run — the mark-absences function may not be deployed, or the cron job from supabase/cron.sql isn't scheduled yet.</>
         ) : (
@@ -448,7 +459,10 @@ export default function CoordinatorDashboard() {
 
       {/* Onboarding / capacity pipeline — click any card to jump to its page */}
       <div>
-        <h2 className="mb-3 font-display text-sm font-semibold text-ink-700">Pipeline</h2>
+        <h2 className="section-label mb-3 flex items-center gap-2.5">
+          Pipeline
+          <span className="hairline flex-1" />
+        </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             label="Total student"
@@ -488,41 +502,49 @@ export default function CoordinatorDashboard() {
       </div>
 
       {/* Clinical Practice Performance Analytics */}
-      <div className="surface-card p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <TrendingUp size={16} className="text-clinical-600" />
-          <h2 className="font-display text-base font-semibold text-ink-900">Attendance trend</h2>
-          <span className="text-xs text-ink-300">— last {WEEKS_OF_TREND} weeks, weekly %</span>
+      <div className="surface-card card-hover p-6">
+        <div className="mb-5 flex flex-wrap items-center gap-2.5">
+          <span className="icon-tile h-8 w-8 rounded-lg">
+            <TrendingUp size={15} strokeWidth={2.5} />
+          </span>
+          <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">Attendance trend</h2>
+          <span className="chip py-0.5">last {WEEKS_OF_TREND} weeks · weekly %</span>
         </div>
         <AttendanceTrendChart data={trend} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Hospital Rotation Analytics */}
-        <div className="surface-card p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <HospitalIcon size={16} className="text-clinical-600" />
-            <h2 className="font-display text-base font-semibold text-ink-900">Hospital compliance</h2>
+        <div className="surface-card card-hover p-6">
+          <div className="mb-5 flex items-center gap-2.5">
+            <span className="icon-tile h-8 w-8 rounded-lg">
+              <HospitalIcon size={15} strokeWidth={2.5} />
+            </span>
+            <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">Hospital compliance</h2>
           </div>
           <HospitalComplianceBars rows={hospitalCompliance} />
         </div>
 
         {/* Student Risk Detection Panel */}
-        <div className="surface-card p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <ShieldAlert size={16} className="text-status-expired" />
-            <h2 className="font-display text-base font-semibold text-ink-900">Students needing attention</h2>
+        <div className="surface-card card-hover p-6">
+          <div className="mb-5 flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-status-expired/12 text-status-expired ring-1 ring-inset ring-status-expired/25">
+              <ShieldAlert size={15} strokeWidth={2.5} />
+            </span>
+            <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">Students needing attention</h2>
           </div>
           <StudentRiskPanel entries={riskEntries} />
         </div>
       </div>
 
       {/* Live Clinical Activity Map */}
-      <div className="surface-card p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Activity size={16} className="text-vital-600" />
-          <h2 className="font-display text-base font-semibold text-ink-900">Live clinical activity</h2>
-          <span className="text-xs text-ink-300">— today, by hospital</span>
+      <div className="surface-card card-hover p-6">
+        <div className="mb-5 flex flex-wrap items-center gap-2.5">
+          <span className="icon-tile-accent h-8 w-8 rounded-lg">
+            <Activity size={15} strokeWidth={2.5} />
+          </span>
+          <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-ink-900">Live clinical activity</h2>
+          <span className="chip py-0.5">today · by hospital</span>
         </div>
         <HospitalActivityMap hospitals={hospitalActivity} />
       </div>

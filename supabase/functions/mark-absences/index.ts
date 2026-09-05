@@ -124,11 +124,35 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
+    // Added in migration 0017. Records the outcome of THIS call — success or
+    // failure, with a reason — every time, not just on success. Without
+    // this, a persistently failing cron call (most commonly: the
+    // service_role key baked into supabase/cron.sql's Authorization header
+    // no longer matches this project's current key) looks identical, from
+    // `cron.job_run_details`, to a healthy one — that table only proves the
+    // HTTP request was queued, not that it succeeded. Best-effort: if this
+    // write itself fails, the original response still goes out unchanged.
+    async function recordAttempt(ok: boolean, error?: string, markedCount?: number) {
+      try {
+        await admin.from('system_status').update({
+          last_mark_absences_attempt: new Date().toISOString(),
+          last_mark_absences_error: ok ? null : error ?? 'Unknown error',
+          ...(ok ? { last_mark_absences_run: new Date().toISOString(), last_mark_absences_marked_count: markedCount ?? 0 } : {}),
+        }).eq('id', true);
+      } catch {
+        // Nothing more useful to do — don't let a logging failure mask the
+        // real response.
+      }
+    }
+
     // ------------------------------------------------------------------
     // Authorization. See the note at the top of this file.
     // ------------------------------------------------------------------
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return json({ error: 'Missing authorization header.' }, 401);
+    if (!authHeader) {
+      await recordAttempt(false, 'Rejected: missing Authorization header.');
+      return json({ error: 'Missing authorization header.' }, 401);
+    }
 
     const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
     const isCronCaller = bearerToken === serviceRoleKey;
@@ -142,6 +166,12 @@ Deno.serve(async (req) => {
       });
       const { data: userData, error: userError } = await callerClient.auth.getUser();
       if (userError || !userData.user) {
+        // If this is actually the cron job — a stale/rotated service_role
+        // key would land here too, since it fails the isCronCaller check
+        // above and then also fails as a user JWT — this is the single most
+        // likely cause of a silently-stale "Last automatic check". See the
+        // note at the top of this file and in migration 0017.
+        await recordAttempt(false, 'Rejected: caller is neither the service-role key nor a valid session (check that the key in supabase/cron.sql matches this project\'s CURRENT service_role key — it may have been rotated since cron.sql was last set up).');
         return json({ error: 'Your session has expired. Please log in again.' }, 401);
       }
 
@@ -151,12 +181,15 @@ Deno.serve(async (req) => {
         .eq('id', userData.user.id)
         .maybeSingle();
       if (callerCoordinatorError) {
+        await recordAttempt(false, `Rejected: could not verify caller permissions — ${callerCoordinatorError.message}`);
         return json({ error: 'Unable to verify your permissions. ' + callerCoordinatorError.message }, 500);
       }
       if (!callerCoordinator?.is_active) {
+        await recordAttempt(false, 'Rejected: caller is not an active coordinator.');
         return json({ error: 'Only an active coordinator can run the absence check.' }, 403);
       }
       if (!callerCoordinator.is_super_coordinator && !callerCoordinator.can_manage_attendance) {
+        await recordAttempt(false, 'Rejected: caller lacks can_manage_attendance.');
         return json({ error: "You don't have permission to run the absence check." }, 403);
       }
     }
@@ -197,10 +230,7 @@ Deno.serve(async (req) => {
       .gte('end_date', targetDate);
     if (rotationsError) throw rotationsError;
     if (!rotations || rotations.length === 0) {
-      await admin.from('system_status').update({
-        last_mark_absences_run: new Date().toISOString(),
-        last_mark_absences_marked_count: 0,
-      }).eq('id', true);
+      await recordAttempt(true, undefined, 0);
       return json({ date: targetDate, checked: 0, marked_absent: 0, skipped: {} });
     }
 
@@ -342,14 +372,23 @@ Deno.serve(async (req) => {
     // is specifically to prove the live, cutoff-respecting automation is
     // still executing.
     if (!isManualCall) {
-      await admin.from('system_status').update({
-        last_mark_absences_run: new Date().toISOString(),
-        last_mark_absences_marked_count: markedCount,
-      }).eq('id', true);
+      await recordAttempt(true, undefined, markedCount);
     }
 
     return json({ date: targetDate, checked: rotations.length, marked_absent: markedCount, skipped });
   } catch (err) {
+    // Best-effort — `admin` may not exist yet if env vars themselves are
+    // missing, hence the inner try/catch rather than assuming it's defined.
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      await createClient(supabaseUrl, serviceRoleKey).from('system_status').update({
+        last_mark_absences_attempt: new Date().toISOString(),
+        last_mark_absences_error: `Threw: ${(err as Error).message}`,
+      }).eq('id', true);
+    } catch {
+      // Nothing more useful to do.
+    }
     return json({ error: (err as Error).message }, 400);
   }
 });

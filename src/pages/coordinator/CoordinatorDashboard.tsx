@@ -31,7 +31,12 @@ export default function CoordinatorDashboard() {
   const [batch, setBatch] = useState<string>('all');
   const [batches, setBatches] = useState<string[]>([]);
   const [stats, setStats] = useState({ present: 0, late: 0, absent: 0 });
-  const [lastRun, setLastRun] = useState<{ at: string | null; count: number | null }>({ at: null, count: null });
+  const [lastRun, setLastRun] = useState<{ at: string | null; count: number | null; attemptAt: string | null; error: string | null }>({
+    at: null,
+    count: null,
+    attemptAt: null,
+    error: null,
+  });
 
   // New: dashboard analytics state (additive — nothing above this line changed behavior)
   const [trend, setTrend] = useState<TrendPoint[]>([]);
@@ -99,7 +104,17 @@ export default function CoordinatorDashboard() {
       supabase.from('rotations').select('student_id').eq('status', 'active'),
     ]);
 
-    setLastRun({ at: (statusRow as any)?.last_mark_absences_run ?? null, count: (statusRow as any)?.last_mark_absences_marked_count ?? null });
+    setLastRun({
+      at: (statusRow as any)?.last_mark_absences_run ?? null,
+      count: (statusRow as any)?.last_mark_absences_marked_count ?? null,
+      // Added in migration 0017 — see the note in that file and in
+      // supabase/functions/mark-absences/index.ts for why this exists:
+      // `last_mark_absences_run` only updates on success, so a persistently
+      // failing call (most often a stale service_role key in
+      // supabase/cron.sql) used to go silently stale with no reason shown.
+      attemptAt: (statusRow as any)?.last_mark_absences_attempt ?? null,
+      error: (statusRow as any)?.last_mark_absences_error ?? null,
+    });
     setBatches(Array.from(new Set((studentBatches ?? []).map((s) => s.batch))));
 
     const batchStudentIds = batch === 'all' ? null : new Set(batchStudentIdsResult.data?.map((s: { id: string }) => s.id));
@@ -424,32 +439,46 @@ export default function CoordinatorDashboard() {
 
       {/* Proof the automatic (cron-scheduled) absence check is actually
           running, not just theoretically correct — turns red/stale if the
-          cron job from supabase/cron.sql isn't actually scheduled. */}
-      <div className={`relative flex items-center gap-2 overflow-hidden rounded-xl2 px-4 py-3 text-xs leading-relaxed ring-1 ring-inset ${
-        !lastRun.at
-          ? 'bg-status-verylate/8 text-status-verylate ring-status-verylate/30'
-          : Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000
-          ? 'bg-status-expired/8 text-status-expired ring-status-expired/30'
-          : 'bg-status-present/8 text-status-present ring-status-present/30'
-      }`}>
-        <span className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${
-          !lastRun.at
-            ? 'bg-status-verylate'
-            : Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000
-            ? 'bg-status-expired'
-            : 'bg-status-present'
-        }`} />
-        {!lastRun.at ? (
-          <>⚠ Automatic absence check has never run — the mark-absences function may not be deployed, or the cron job from supabase/cron.sql isn't scheduled yet.</>
-        ) : (
-          <>
-            {Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000 ? '⚠ ' : '✓ '}
-            Last automatic check: {formatDistanceToNow(new Date(lastRun.at), { addSuffix: true })}
-            {lastRun.count !== null && lastRun.count > 0 ? ` — marked ${lastRun.count} absent` : ''}
-            {Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000 ? ' (stale — check that the cron job is still scheduled)' : ''}
-          </>
-        )}
-      </div>
+          cron job from supabase/cron.sql isn't actually scheduled.
+
+          Added in migration 0017: `hasRecentError` catches the case where
+          the check LOOKS stale but is actually failing every 5 minutes on
+          schedule — most commonly because the service_role key pasted into
+          supabase/cron.sql's Authorization header no longer matches this
+          project's current key (it may have been rotated since). That
+          failure mode is invisible in `cron.job_run_details`, which only
+          proves the HTTP call was queued, not that it succeeded — so
+          without this, a coordinator has no way to tell "not scheduled"
+          apart from "scheduled and failing every time" other than a bare
+          "stale" label. */}
+      {(() => {
+        const isStale = !lastRun.at || Date.now() - new Date(lastRun.at).getTime() > 20 * 60 * 1000;
+        const hasRecentError = !!lastRun.error && !!lastRun.attemptAt && Date.now() - new Date(lastRun.attemptAt).getTime() < 20 * 60 * 1000;
+        const tone = hasRecentError || (isStale && lastRun.at) ? 'expired' : !lastRun.at ? 'never-run' : 'present';
+        return (
+          <div className={`relative flex items-center gap-2 overflow-hidden rounded-xl2 px-4 py-3 text-xs leading-relaxed ring-1 ring-inset ${
+            tone === 'expired' ? 'bg-status-expired/8 text-status-expired ring-status-expired/30'
+            : tone === 'never-run' ? 'bg-status-verylate/8 text-status-verylate ring-status-verylate/30'
+            : 'bg-status-present/8 text-status-present ring-status-present/30'
+          }`}>
+            <span className={`pointer-events-none absolute inset-y-0 left-0 w-[3px] ${
+              tone === 'expired' ? 'bg-status-expired' : tone === 'never-run' ? 'bg-status-verylate' : 'bg-status-present'
+            }`} />
+            {hasRecentError ? (
+              <>⚠ Automatic check is running on schedule but failing every time — {formatDistanceToNow(new Date(lastRun.attemptAt!), { addSuffix: true })}: {lastRun.error}</>
+            ) : !lastRun.at ? (
+              <>⚠ Automatic absence check has never run — the mark-absences function may not be deployed, or the cron job from supabase/cron.sql isn't scheduled yet.</>
+            ) : (
+              <>
+                {isStale ? '⚠ ' : '✓ '}
+                Last automatic check: {formatDistanceToNow(new Date(lastRun.at), { addSuffix: true })}
+                {lastRun.count !== null && lastRun.count > 0 ? ` — marked ${lastRun.count} absent` : ''}
+                {isStale ? ' (stale — check that the cron job is still scheduled)' : ''}
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Present today" value={stats.present} icon={CheckCircle2} tone="vital" />

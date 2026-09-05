@@ -4,16 +4,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, MapPin, CalendarClock, FileWarning, Bell, BellPlus, User,
   Users, Hospital, Repeat, ClipboardList, Megaphone, CalendarX2, LogOut,
-  Sun, Moon, Sparkles, PanelLeftClose, PanelLeftOpen, Search, ChevronDown, Check, Settings as SettingsIcon, UserCog,
+  PanelLeftClose, PanelLeftOpen, Search, ChevronDown, Check, Settings as SettingsIcon, UserCog,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import { useTheme, ThemePreference } from '../../theme/ThemeProvider';
 import { supabase } from '../../lib/supabase';
 import ErrorBoundary from '../ErrorBoundary';
 import Wordmark from '../ui/Wordmark';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import ThemeToggle from '../ui/ThemeToggle';
 import PushNotificationManager from './PushNotificationManager';
 import { getNotificationPermission, requestNotificationPermission, setAppBadgeCount } from '../../utils/pushNotifications';
 import { useToast } from '../../context/ToastContext';
@@ -63,50 +63,6 @@ const coordinatorNav: NavItem[] = [
 
 function matchesActive(pathname: string, item: { to: string; end?: boolean }) {
   return item.end ? pathname === item.to : pathname.startsWith(item.to);
-}
-
-const THEME_OPTIONS: { value: ThemePreference; icon: LucideIcon; label: string }[] = [
-  { value: 'light', icon: Sun, label: 'Light' },
-  { value: 'dark', icon: Moon, label: 'Dark' },
-  { value: 'aether', icon: Sparkles, label: 'Aether' },
-];
-
-function ThemeToggle() {
-  const { preference, setPreference } = useTheme();
-  const activeIndex = THEME_OPTIONS.findIndex((o) => o.value === preference);
-
-  /* The track keeps its exact h-9 / w-24 / p-1 box and the thumb its h-7,
-     because the sliding thumb's position is computed from those numbers
-     (calc((100% - 8px) / 3)). The outline is an inset RING rather than a
-     border for the same reason — a border would shrink the padding box the
-     calc() resolves against. */
-  return (
-    <div className="relative flex h-9 w-24 items-center rounded-full bg-surface-alt p-1 ring-1 ring-inset ring-surface-line">
-      <motion.div
-        className="absolute h-7 rounded-full bg-surface shadow-card ring-1 ring-clinical-500/20"
-        style={{ width: 'calc((100% - 8px) / 3)' }}
-        animate={{ left: `calc(4px + ${activeIndex} * (100% - 8px) / 3)` }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      />
-      {THEME_OPTIONS.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => setPreference(opt.value)}
-          aria-label={`${opt.label} theme`}
-          title={`${opt.label} theme`}
-          className="relative z-10 flex h-7 flex-1 items-center justify-center"
-        >
-          <opt.icon
-            size={14}
-            className={clsx(
-              'transition-colors',
-              preference === opt.value ? 'text-clinical-600' : 'text-ink-400 hover:text-ink-600',
-            )}
-          />
-        </button>
-      ))}
-    </div>
-  );
 }
 
 /** Shared look for the small round icon buttons that live in the top bar. */

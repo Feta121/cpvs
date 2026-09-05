@@ -626,14 +626,18 @@ body::after {
   }
 
   /* Tinted, rimmed square that an icon sits in — used for stat cards, empty
-     states, and dialog headers so icons feel mounted rather than floating. */
+     states, and dialog headers so icons feel mounted rather than floating.
+     `.icon-tile-accent` is a full standalone alternative (not a modifier to
+     combine with `.icon-tile`) — every call site in the app uses it alone,
+     so it needs its own copy of the centering rules or the icon renders
+     top-left instead of centered. */
   .icon-tile {
     @apply relative flex shrink-0 items-center justify-center rounded-xl text-clinical-600;
     background-image: linear-gradient(140deg, rgb(var(--primary-500) / 0.18), rgb(var(--accent-500) / 0.12));
     box-shadow: inset 0 0 0 1px rgb(var(--primary-500) / 0.18), inset 0 1px 0 var(--hl);
   }
   .icon-tile-accent {
-    @apply text-vital-600;
+    @apply relative flex shrink-0 items-center justify-center rounded-xl text-vital-600;
     background-image: linear-gradient(140deg, rgb(var(--accent-500) / 0.2), rgb(var(--primary-500) / 0.1));
     box-shadow: inset 0 0 0 1px rgb(var(--accent-500) / 0.2), inset 0 1px 0 var(--hl);
   }

@@ -1,0 +1,45 @@
+-- ============================================================================
+-- Migration 0017 — make a failing mark-absences run visible, not silent
+--
+-- WHY THIS EXISTS
+--
+-- The coordinator dashboard's "Last automatic check" banner (migration 0008)
+-- only ever gets written on a SUCCESSFUL run — mark-absences updates
+-- `last_mark_absences_run` right before it returns 200. If the function
+-- returns anything else (401/403 from the authorization check added in
+-- 0014/0015, or a thrown exception), nothing is written, and the banner just
+-- goes stale with no indication of why.
+--
+-- That "why" is easy to miss because of how pg_cron + pg_net work together:
+--   `select net.http_post(...)` inside a cron job QUEUES an HTTP request and
+--   returns immediately. `cron.job_run_details` records whether that SQL
+--   statement itself ran without error — it says nothing about the HTTP
+--   response the queued request eventually got back. A coordinator (or
+--   developer) checking `select * from cron.job_run_details` and seeing rows
+--   marked "succeeded" can reasonably conclude "the cron job is running
+--   fine", while every single one of those calls was actually rejected with
+--   401/403 by mark-absences itself — most commonly because the
+--   `service_role` key pasted into supabase/cron.sql's Authorization header
+--   was regenerated/rotated in the Supabase dashboard at some point after
+--   cron.sql was set up, so it no longer matches. The actual HTTP outcome
+--   only shows up in `net._http_response`, which almost nobody thinks to
+--   check.
+--
+-- This migration adds two columns so mark-absences can record its own
+-- outcome — success or failure, with a reason — every time it runs, not just
+-- on success. The dashboard (see the matching frontend change) then shows
+-- the actual reason instead of a bare "stale".
+--
+-- SAFETY: additive — two new nullable columns, nothing else touched.
+-- ============================================================================
+
+alter table system_status add column if not exists last_mark_absences_attempt timestamptz;
+alter table system_status add column if not exists last_mark_absences_error text;
+
+-- Verification:
+--   select last_mark_absences_run, last_mark_absences_attempt, last_mark_absences_error
+--   from system_status;
+--   -- last_mark_absences_attempt updates on EVERY call, success or failure.
+--   -- last_mark_absences_error is null on success, and holds the reason on
+--   -- the most recent failure otherwise (cleared back to null next time a
+--   -- call succeeds).

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Eye, EyeOff, User, Lock, AlertCircle, ShieldCheck, MapPin, CalendarClock, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Wordmark from '../components/ui/Wordmark';
+import ThemeToggle from '../components/ui/ThemeToggle';
 
 export default function Login() {
   const { signInWithUsername, refreshProfile } = useAuth();
@@ -29,6 +30,9 @@ export default function Login() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4 py-8 sm:py-12">
+      <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
       <div className="animate-fadeUp w-full max-w-5xl overflow-hidden rounded-xl4 border border-surface-line bg-surface/60 shadow-float backdrop-blur-xl lg:grid lg:grid-cols-[1.02fr_1fr]">
         {/* Brand panel — desktop only. Every color here resolves through the
             theme tokens (primary ramp + onPrimary), so the panel restains

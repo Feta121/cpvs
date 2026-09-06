@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Repeat, CalendarCheck2, FileWarning, TrendingUp, Fingerprint, ShieldOff, Smartphone } from 'lucide-react';
+import { X, Repeat, CalendarCheck2, FileWarning, TrendingUp, Fingerprint, ShieldOff, Smartphone, IdCard, Building2, Mail, GraduationCap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
@@ -88,26 +88,36 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="modal-panel max-h-[85vh] max-w-2xl overflow-y-auto p-6"
+        className="modal-panel relative max-h-[85vh] max-w-2xl overflow-y-auto p-0"
         onClick={(e) => e.stopPropagation()}
       >
         {loading ? (
-          <FullScreenLoader label="Loading student profile…" />
+          <div className="p-6"><FullScreenLoader label="Loading student profile…" /></div>
         ) : !student ? (
-          <div className="py-8 text-center text-sm text-ink-500">Student not found.</div>
+          <div className="p-6 py-8 text-center text-sm text-ink-500">Student not found.</div>
         ) : (
           <>
-            <div className="mb-6 flex items-start justify-between gap-3">
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-vital-400 to-clinical-500 text-xl font-bold text-onAccent shadow-glow-accent ring-2 ring-surface">
+            {/* Header banner — was a plain flat row at the same padding
+                level as everything below it; pulled into its own tinted
+                section with the app's usual soft blurred accent blobs (see
+                Attendance.tsx / CoordinatorDashboard) so the modal opens
+                with a clear "hero" instead of just a stack of boxes. */}
+            <div className="relative overflow-hidden rounded-t-xl3 border-b border-surface-line bg-surface-alt/30 p-6">
+              <span className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full bg-clinical-500/10 blur-3xl" />
+              <span className="pointer-events-none absolute -bottom-20 -right-12 h-56 w-56 rounded-full bg-vital-500/10 blur-3xl" />
+              <button onClick={onClose} className="btn-icon absolute right-4 top-4 h-8 w-8" aria-label="Close">
+                <X size={16} />
+              </button>
+              <div className="relative flex items-center gap-4 pr-10">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-vital-400 to-clinical-500 text-2xl font-bold text-onAccent shadow-glow-accent ring-4 ring-surface">
                   {profile?.photo_url ? (
                     <img src={profile.photo_url} alt={profile.full_name} className="h-full w-full object-cover" />
                   ) : (
                     (profile?.full_name?.[0] ?? '?').toUpperCase()
                   )}
                 </div>
-                <div>
-                  <h2 className="font-display text-xl font-semibold tracking-tightest text-ink-900">{profile?.full_name ?? '(profile missing)'}</h2>
+                <div className="min-w-0">
+                  <h2 className="truncate font-display text-xl font-semibold tracking-tightest text-ink-900">{profile?.full_name ?? '(profile missing)'}</h2>
                   <p className="mt-0.5 text-sm text-ink-500">{student.program ?? student.department} · Year {student.year} · Batch {student.batch}</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <Badge tone={student.status === 'active' ? 'present' : student.status === 'completed' ? 'clinical' : 'neutral'}>{student.status.replace('_', ' ')}</Badge>
@@ -115,16 +125,27 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
                   </div>
                 </div>
               </div>
-              <button onClick={onClose} className="btn-icon h-8 w-8" aria-label="Close">
-                <X size={16} />
-              </button>
             </div>
 
-            <div className="inset-panel mb-5 grid grid-cols-2 gap-4 p-4 text-sm sm:grid-cols-4">
-              <div><p className="section-label">Student ID</p><p className="mt-1 font-semibold text-ink-900">{student.university_id ?? '—'}</p></div>
-              <div><p className="section-label">CPVS ID</p><p className="mt-1 font-semibold text-ink-900">{student.student_id}</p></div>
-              <div><p className="section-label">Institution</p><p className="mt-1 truncate font-semibold text-ink-900">{student.institution}</p></div>
-              <div><p className="section-label">Email</p><p className="mt-1 truncate font-semibold text-ink-900">{profile?.email ?? '—'}</p></div>
+            <div className="p-6">
+            {/* Was a plain 2x2 text grid with no visual anchor per field —
+                each one now gets its own small icon, matching the
+                icon+label micro-pattern already used everywhere else in
+                this app (RotationHistory's coordinator/date rows, Settings'
+                account row, etc.) instead of being the one place in this
+                modal without it. */}
+            <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { icon: IdCard, label: 'Student ID', value: student.university_id ?? '—' },
+                { icon: GraduationCap, label: 'CPVS ID', value: student.student_id },
+                { icon: Building2, label: 'Institution', value: student.institution },
+                { icon: Mail, label: 'Email', value: profile?.email ?? '—' },
+              ].map((f) => (
+                <div key={f.label} className="inset-panel p-3.5">
+                  <p className="section-label flex items-center gap-1.5"><f.icon size={11} /> {f.label}</p>
+                  <p className="mt-1.5 truncate text-sm font-semibold text-ink-900">{f.value}</p>
+                </div>
+              ))}
             </div>
 
             <div className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -141,7 +162,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
               ))}
             </div>
 
-            <div className="mb-6">
+            <div className="mb-6 border-t border-surface-line pt-5">
               <div className="mb-3 flex items-center gap-2.5">
                 <span className="icon-tile h-7 w-7 rounded-lg">
                   <TrendingUp size={14} strokeWidth={2.5} />
@@ -160,7 +181,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
               </div>
             </div>
 
-            <div className="mb-6">
+            <div className="mb-6 border-t border-surface-line pt-5">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-status-verylate/12 text-status-verylate ring-1 ring-inset ring-status-verylate/25">
                   <FileWarning size={14} strokeWidth={2.5} />
@@ -178,7 +199,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
                 Read-only for every other coordinator; students themselves
                 can never trigger this at all, only see their own status
                 (see Settings.tsx). */}
-            <div className="mb-6">
+            <div className="mb-6 border-t border-surface-line pt-5">
               <div className="mb-3 flex items-center gap-2.5">
                 <span className="icon-tile h-7 w-7 rounded-lg">
                   <Fingerprint size={14} strokeWidth={2.5} />
@@ -221,7 +242,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
               )}
             </div>
 
-            <div>
+            <div className="border-t border-surface-line pt-5">
               <div className="mb-3 flex items-center gap-2.5">
                 <span className="icon-tile h-7 w-7 rounded-lg">
                   <Repeat size={14} strokeWidth={2.5} />
@@ -250,6 +271,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
 
             <div className="mt-5 flex items-center gap-1.5 border-t border-surface-line pt-4 text-xs text-ink-400">
               <CalendarCheck2 size={13} /> Joined {new Date(student.created_at).toLocaleDateString()}
+            </div>
             </div>
           </>
         )}

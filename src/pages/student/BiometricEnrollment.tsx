@@ -177,7 +177,7 @@ export default function BiometricEnrollment() {
           )}
 
           <p className="text-center text-xs text-ink-400">
-            This is required before you can check in — it\u2019s what stops your account from being used by anyone but you.
+            This is required before you can check in — it's what stops your account from being used by anyone but you.
           </p>
         </div>
       </div>

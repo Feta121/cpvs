@@ -134,13 +134,13 @@ export default function RotationHistory() {
 
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Total rotations', value: rotations.length },
+          { label: 'Rotations', value: rotations.length },
           { label: 'Hospitals', value: totalHospitals },
-          { label: 'Lifetime attendance', value: lifetimePct !== null ? `${lifetimePct}%` : '—' },
+          { label: 'Lifetime %', value: lifetimePct !== null ? `${lifetimePct}%` : '—' },
         ].map((s) => (
           <div key={s.label} className="surface-card p-4 text-center">
             <p className="stat-value text-2xl sm:text-3xl">{s.value}</p>
-            <p className="section-label mt-1.5 truncate">{s.label}</p>
+            <p className="section-label mt-1.5">{s.label}</p>
           </div>
         ))}
       </div>
@@ -175,37 +175,86 @@ export default function RotationHistory() {
               <div key={r.id} className="surface-card overflow-hidden">
                 <button
                   onClick={() => setExpanded(isOpen ? null : r.id)}
-                  className="flex w-full flex-wrap items-center gap-3 p-5 text-left transition-colors duration-200 hover:bg-surface-alt/40"
+                  className="relative w-full p-5 text-left transition-colors duration-200 hover:bg-surface-alt/40"
                 >
-                  <span className="icon-tile h-10 w-10 shrink-0 rounded-xl">
-                    <HospitalIcon size={17} strokeWidth={2.25} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate font-display text-base font-semibold text-ink-900">{r.hospital?.name ?? 'Unknown hospital'}</p>
-                      <Badge tone={STATUS_TONE[r.status]} dot>{r.status}</Badge>
+                  {/* Chevron pulled out of the flex flow entirely and pinned
+                      top-right — it doesn't need to participate in either
+                      layout below, and keeping it out is what lets the
+                      mobile block below stay a single clean column. */}
+                  <ChevronDown size={18} className={`absolute right-5 top-5 shrink-0 text-ink-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+
+                  {/* MOBILE (below sm): was one `flex flex-wrap` row trying
+                      to hold icon + name + badge + coordinator + dates +
+                      two stat blocks all together — on a narrow phone the
+                      wrapped pieces ended up overlapping each other instead
+                      of stacking cleanly, since flex-wrap reflows same-row
+                      items but doesn't guarantee a wrapped block starts
+                      clear of a taller sibling above it. Replaced with a
+                      real single-column stack, purpose-built for phone
+                      width, instead of trying to force one layout to serve
+                      both breakpoints. */}
+                  <div className="flex flex-col gap-3 pr-7 sm:hidden">
+                    <div className="flex items-center gap-3">
+                      <span className="icon-tile h-10 w-10 shrink-0 rounded-xl">
+                        <HospitalIcon size={17} strokeWidth={2.25} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-display text-base font-semibold text-ink-900">{r.hospital?.name ?? 'Unknown hospital'}</p>
+                        <Badge tone={STATUS_TONE[r.status]} dot>{r.status}</Badge>
+                      </div>
                     </div>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-500">
-                      <span className="flex items-center gap-1">
-                        <UserRound size={12} /> {r.coordinator?.full_name ?? 'Unassigned coordinator'}
-                      </span>
-                      <span>
-                        {format(start, 'MMM d, yyyy')} – {r.status === 'active' ? 'Present' : format(end, 'MMM d, yyyy')}
-                      </span>
+                    <p className="flex items-center gap-1.5 text-xs text-ink-500">
+                      <UserRound size={12} className="shrink-0" /> <span className="truncate">{r.coordinator?.full_name ?? 'Unassigned coordinator'}</span>
                     </p>
+                    <p className="text-xs text-ink-500">
+                      {format(start, 'MMM d, yyyy')} – {r.status === 'active' ? 'Present' : format(end, 'MMM d, yyyy')}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-surface-alt/60 px-3 py-2 text-center ring-1 ring-inset ring-surface-line">
+                        <p className="stat-value text-base">{completed}<span className="text-xs text-ink-400">/{required || '—'}</span></p>
+                        <p className="section-label mt-0.5 text-[9px]">Days done</p>
+                      </div>
+                      <div className="rounded-xl bg-surface-alt/60 px-3 py-2 text-center ring-1 ring-inset ring-surface-line">
+                        <p className={`stat-value text-base ${pct !== null ? statusColors(pct >= 90 ? 'present' : pct >= 75 ? 'late' : 'absent').text : ''}`}>
+                          {pct !== null ? `${pct}%` : '—'}
+                        </p>
+                        <p className="section-label mt-0.5 text-[9px]">Attendance</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 pl-1">
-                    <div className="text-right">
-                      <p className="stat-value text-lg">{completed}<span className="text-sm text-ink-400">/{required || '—'}</span></p>
-                      <p className="section-label">Days done</p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`stat-value text-lg ${pct !== null ? statusColors(pct >= 90 ? 'present' : pct >= 75 ? 'late' : 'absent').text : ''}`}>
-                        {pct !== null ? `${pct}%` : '—'}
+
+                  {/* DESKTOP (sm: and up): original single-row layout,
+                      unchanged. */}
+                  <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-3 sm:pr-6">
+                    <span className="icon-tile h-10 w-10 shrink-0 rounded-xl">
+                      <HospitalIcon size={17} strokeWidth={2.25} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate font-display text-base font-semibold text-ink-900">{r.hospital?.name ?? 'Unknown hospital'}</p>
+                        <Badge tone={STATUS_TONE[r.status]} dot>{r.status}</Badge>
+                      </div>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-500">
+                        <span className="flex items-center gap-1">
+                          <UserRound size={12} /> {r.coordinator?.full_name ?? 'Unassigned coordinator'}
+                        </span>
+                        <span>
+                          {format(start, 'MMM d, yyyy')} – {r.status === 'active' ? 'Present' : format(end, 'MMM d, yyyy')}
+                        </span>
                       </p>
-                      <p className="section-label">Attendance</p>
                     </div>
-                    <ChevronDown size={18} className={`shrink-0 text-ink-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                    <div className="flex items-center gap-4 pl-1">
+                      <div className="text-right">
+                        <p className="stat-value text-lg">{completed}<span className="text-sm text-ink-400">/{required || '—'}</span></p>
+                        <p className="section-label">Days done</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`stat-value text-lg ${pct !== null ? statusColors(pct >= 90 ? 'present' : pct >= 75 ? 'late' : 'absent').text : ''}`}>
+                          {pct !== null ? `${pct}%` : '—'}
+                        </p>
+                        <p className="section-label">Attendance</p>
+                      </div>
+                    </div>
                   </div>
                 </button>
 

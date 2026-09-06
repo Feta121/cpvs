@@ -17,24 +17,23 @@ export default function LiveClock() {
   }, []);
 
   return (
-    // Was a single `flex-wrap` row including the "•" separator as a flex
-    // child — on a narrow phone screen the full date ("Saturday, September
-    // 5, 2026") plus the time didn't fit one line, so it wrapped, and the
-    // bare dot ended up stranded alone at the start of the second line
-    // rather than acting as a separator. Below `sm`, this now lays out as
-    // two clean rows (icon+date, then time) with no dot; at `sm` and up it's
-    // the original single-line pill with the dot back as a separator.
-    <div className="inline-flex flex-col items-start gap-1 rounded-2xl border border-surface-line bg-surface/70 px-3.5 py-2.5 text-sm font-medium text-ink-600 shadow-card backdrop-blur-md sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5 sm:rounded-full sm:py-2">
-      <span className="flex items-center gap-2.5">
-        <span className="icon-tile h-6 w-6 shrink-0 rounded-lg">
-          <Clock size={13} strokeWidth={2.5} />
-        </span>
-        <span>{format(now, 'EEEE, MMMM d, yyyy')}</span>
+    // User feedback: no card/box on mobile, single row on both. Below `sm`
+    // this is now bare icon + text (no border/background/shadow/padding),
+    // and the date uses a shorter format there ("Sat, Sep 5, 2026" instead
+    // of "Saturday, September 5, 2026") so the whole thing — icon, date,
+    // separator, time — actually fits one line on a phone instead of
+    // needing to wrap. At `sm` and up this is unchanged from before: the
+    // original bordered pill with the full date.
+    <div className="inline-flex items-center gap-2 text-sm font-medium text-ink-600 sm:gap-2.5 sm:rounded-full sm:border sm:border-surface-line sm:bg-surface/70 sm:px-3.5 sm:py-2 sm:shadow-card sm:backdrop-blur-md">
+      <span className="icon-tile h-6 w-6 shrink-0 rounded-lg">
+        <Clock size={13} strokeWidth={2.5} />
       </span>
-      <span className="hidden h-1 w-1 shrink-0 rounded-full bg-ink-300 sm:block" />
+      <span className="sm:hidden">{format(now, 'EEE, MMM d, yyyy')}</span>
+      <span className="hidden sm:inline">{format(now, 'EEEE, MMMM d, yyyy')}</span>
+      <span className="h-1 w-1 shrink-0 rounded-full bg-ink-300" />
       {/* tabular-nums keeps digit widths fixed so the seconds ticking over
           doesn't cause the surrounding text to jitter/reflow every second. */}
-      <span className="tabular-nums font-semibold text-ink-900 pl-[34px] sm:pl-0">{format(now, 'hh:mm:ss a')}</span>
+      <span className="tabular-nums font-semibold text-ink-900">{format(now, 'hh:mm:ss a')}</span>
     </div>
   );
 }

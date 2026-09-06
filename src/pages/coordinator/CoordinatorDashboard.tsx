@@ -189,7 +189,7 @@ export default function CoordinatorDashboard() {
    * Walks forward day-by-day from the last successful backfill through
    * today, running the same absence check on every day in between — so a
    * coordinator who missed checking for a while can just click one button
-   * instead of picking each missed date individually. Capped at 60 days on
+   * instead of picking each missed date individually. Capped at 15 days on
    * a first-ever run (no last_backfill_date yet) to keep it bounded.
    */
   async function runBackfill() {
@@ -198,7 +198,7 @@ export default function CoordinatorDashboard() {
     const { data: statusRow } = await supabase.from('system_status').select('last_backfill_date').eq('id', true).maybeSingle();
     const lastDate = (statusRow as any)?.last_backfill_date
       ? new Date((statusRow as any).last_backfill_date + 'T00:00:00Z')
-      : new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      : new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
 
     const today = new Date();
     const dates: string[] = [];
@@ -399,41 +399,45 @@ export default function CoordinatorDashboard() {
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {has('can_manage_attendance') && (
-            // grid-cols-2 keeps both buttons side by side even on a
-            // narrow phone screen instead of each stacking onto its own
-            // full-width row; sm:flex switches back to natural sizing
-            // once there's room for everything (including the batch
-            // select) to sit in one line like before.
-            <div className="grid grid-cols-2 gap-2 sm:flex">
-              <button
-                onClick={runAbsenceCheck}
-                disabled={runningCheck}
-                className="btn-secondary !gap-1.5 !px-2.5 !py-2 text-xs sm:!gap-2 sm:!px-4 sm:!py-2.5 sm:text-sm"
-                title="Manually mark absent any student past their hospital's check-in cutoff with no record today"
-              >
-                {runningCheck ? <Loader2 size={14} className="shrink-0 animate-spin" /> : <RefreshCw size={14} className="shrink-0" />}
-                {/* Shorter label on mobile so it fits one line at half
-                    width; full label returns once there's room at sm:. */}
-                <span className="sm:hidden">Missed check-ins</span>
-                <span className="hidden sm:inline">Check for missed check-ins</span>
-              </button>
+            // Dropped from mobile entirely (kept on sm: and up) — the
+            // automatic checker banner just below already covers this on a
+            // narrow phone screen, and removing it here is what lets
+            // Backfill + the batch select share a single row instead of
+            // three items competing for one line.
+            <button
+              onClick={runAbsenceCheck}
+              disabled={runningCheck}
+              className="btn-secondary hidden !gap-2 !px-4 !py-2.5 text-sm sm:inline-flex"
+              title="Manually mark absent any student past their hospital's check-in cutoff with no record today"
+            >
+              {runningCheck ? <Loader2 size={14} className="shrink-0 animate-spin" /> : <RefreshCw size={14} className="shrink-0" />}
+              Check for missed check-ins
+            </button>
+          )}
+          {/* `sm:contents` unwraps this at sm: and up, so Backfill and the
+              batch select fall back into the parent flex row exactly like
+              before (in original document order, right after the button
+              above); below sm: it's a real 2-column grid so the two of them
+              share one row instead of each taking a full-width row. */}
+          <div className="grid grid-cols-2 gap-2 sm:contents">
+            {has('can_manage_attendance') && (
               <button
                 onClick={runBackfill}
                 disabled={runningBackfill}
                 className="btn-secondary !gap-1.5 !px-2.5 !py-2 text-xs sm:!gap-2 sm:!px-4 sm:!py-2.5 sm:text-sm"
-                title="Checks every day since the last backfill (or up to 60 days back) through today, marking any missed check-ins absent"
+                title="Checks every day since the last backfill (or up to 15 days back) through today, marking any missed check-ins absent"
               >
                 {runningBackfill ? <Loader2 size={14} className="shrink-0 animate-spin" /> : <RefreshCw size={14} className="shrink-0" />}
                 Backfill
               </button>
-            </div>
-          )}
-          <Select value={batch} onChange={setBatch} className="w-full sm:w-56">
-            <option value="all">All batches</option>
-            {batches.map((b) => (
-              <option key={b} value={b}>{b}</option>
-            ))}
-          </Select>
+            )}
+            <Select value={batch} onChange={setBatch} className="w-full sm:w-56">
+              <option value="all">All batches</option>
+              {batches.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </Select>
+          </div>
         </div>
       </div>
 

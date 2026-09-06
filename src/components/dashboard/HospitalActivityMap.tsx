@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Tooltip as LeafletTooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Tooltip as LeafletTooltip, ZoomControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useTheme } from '../../theme/ThemeProvider';
 
@@ -50,11 +50,16 @@ export default function HospitalActivityMap({ hospitals }: { hospitals: Hospital
           palettes. Markers and tooltips are already themed, so they're
           deliberately left outside that filter. */}
       <div className={preference === 'light' ? '' : 'map-shell-dark'}>
-        <MapContainer center={ADDIS_CENTER} zoom={11} style={{ height: '320px', width: '100%' }} scrollWheelZoom={false}>
+        <MapContainer center={ADDIS_CENTER} zoom={11} style={{ height: '320px', width: '100%' }} scrollWheelZoom={false} zoomControl={false}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+          {/* Was the Leaflet default (top-left), which sat directly on top of
+              the "Students on-site now" legend also anchored top-left,
+              covering its text. Moved to top-right — nothing else lives
+              there. */}
+          <ZoomControl position="topright" />
           {withCoords.map((h) => {
             const total = h.activeNow + h.checkedOutToday;
             const radius = 8 + Math.min(20, total * 2);

@@ -218,15 +218,22 @@ export default function StudentDashboard() {
             {student?.program ?? student?.department} · Year {student?.year} · Batch {student?.batch}
           </p>
         </div>
-        <div className="relative flex flex-wrap gap-2.5">
+        <div className="relative grid w-full grid-cols-3 gap-2 sm:w-auto sm:flex sm:flex-wrap sm:gap-2.5">
           {[
             { value: rotation?.hospital?.name ?? '—', label: 'Current rotation' },
             { value: rotationProgress?.completed ?? '—', label: 'Days completed' },
             { value: attendancePct !== null ? `${attendancePct}%` : '—', label: 'Attendance' },
           ].map((s) => (
-            <div key={s.label} className="min-w-[7rem] rounded-xl2 bg-surface-alt/60 px-4 py-2.5 text-center ring-1 ring-inset ring-surface-line">
-              <p className="truncate font-display text-lg font-semibold tabular-nums text-ink-900">{s.value}</p>
-              <p className="section-label mt-0.5">{s.label}</p>
+            // Was `min-w-[7rem]` on all three, which — combined with the
+            // avatar and name taking most of a phone-width row above —
+            // never left room for all three side by side, so they wrapped
+            // to "one full-width card, then two" instead of one row. Below
+            // `sm` this is now a plain 3-column grid (each cell exactly a
+            // third, smaller padding/text) so they always fit one row;
+            // `sm:` and up is unchanged from before.
+            <div key={s.label} className="min-w-0 rounded-xl2 bg-surface-alt/60 px-2 py-2 text-center ring-1 ring-inset ring-surface-line sm:min-w-[7rem] sm:px-4 sm:py-2.5">
+              <p className="truncate font-display text-sm font-semibold tabular-nums text-ink-900 sm:text-lg">{s.value}</p>
+              <p className="section-label mt-0.5 truncate text-[9px] sm:text-[10px]">{s.label}</p>
             </div>
           ))}
         </div>

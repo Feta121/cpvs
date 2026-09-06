@@ -39,7 +39,7 @@ select cron.schedule(
   '*/5 * * * *',
   $$
   select net.http_post(
-    url := 'https://YOUR-PROJECT-REF.supabase.co/functions/v1/mark-absences',
+    url := 'https://suwdegbfjpmcitqfewgw.supabase.co/functions/v1/mark-absences',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer YOUR-SERVICE-ROLE'

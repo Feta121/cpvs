@@ -23,7 +23,7 @@ export default function AttendanceTrendChart({ data, height = 220 }: { data: Tre
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         {/* Gradient wash under the line. Both stops resolve through the
             theme's primary token, so the fill restains itself per theme
             instead of being a hardcoded blue. */}

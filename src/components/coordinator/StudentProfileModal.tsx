@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { X, Repeat, CalendarCheck2, FileWarning, TrendingUp } from 'lucide-react';
+import { X, Repeat, CalendarCheck2, FileWarning, TrendingUp, Fingerprint, ShieldOff, Smartphone } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
+import { invokeEdgeFunction } from '../../utils/invokeFunction';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import Badge from '../../components/ui/Badge';
+import ConfirmDialog from '../ui/ConfirmDialog';
 import FullScreenLoader from '../ui/FullScreenLoader';
-import type { Student, Profile, Rotation, Hospital, Appeal, AttendanceStatus } from '../../types/database';
+import type { Student, Profile, Rotation, Hospital, Appeal, AttendanceStatus, WebauthnCredential } from '../../types/database';
 
 const PRESENT_LIKE: AttendanceStatus[] = ['present', 'late', 'very_late'];
 
@@ -14,12 +18,17 @@ interface Props {
 }
 
 export default function StudentProfileModal({ studentId, onClose }: Props) {
+  const { coordinator } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<Student | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rotations, setRotations] = useState<(Rotation & { hospital: Hospital | null })[]>([]);
   const [attendanceCounts, setAttendanceCounts] = useState({ total: 0, present: 0, late: 0, veryLate: 0, absent: 0, excused: 0 });
   const [appeals, setAppeals] = useState<Appeal[]>([]);
+  const [credentials, setCredentials] = useState<WebauthnCredential[]>([]);
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     load();
@@ -28,18 +37,20 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
 
   async function load() {
     setLoading(true);
-    const [{ data: studentData }, profileMap, { data: rotationData }, { data: attendanceData }, { data: appealData }] = await Promise.all([
+    const [{ data: studentData }, profileMap, { data: rotationData }, { data: attendanceData }, { data: appealData }, { data: credentialData }] = await Promise.all([
       supabase.from('students').select('*').eq('id', studentId).maybeSingle(),
       fetchProfilesById([studentId]),
       supabase.from('rotations').select('*, hospital:hospitals(*)').eq('student_id', studentId).order('start_date', { ascending: false }),
       supabase.from('attendance').select('status').eq('student_id', studentId),
       supabase.from('appeals').select('*').eq('student_id', studentId).order('created_at', { ascending: false }),
+      supabase.from('webauthn_credentials').select('*').eq('student_id', studentId).order('created_at', { ascending: false }),
     ]);
 
     setStudent(studentData ?? null);
     setProfile(profileMap.get(studentId) ?? null);
     setRotations((rotationData as any) ?? []);
     setAppeals(appealData ?? []);
+    setCredentials(credentialData ?? []);
 
     const rows = attendanceData ?? [];
     setAttendanceCounts({
@@ -52,6 +63,19 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
     });
 
     setLoading(false);
+  }
+
+  async function handleResetBiometric() {
+    setResetting(true);
+    const { error } = await invokeEdgeFunction('reset-biometric-enrollment', { studentId });
+    setResetting(false);
+    setConfirmingReset(false);
+    if (error) {
+      showError(error);
+      return;
+    }
+    showSuccess("Biometric enrollment reset — the student will be asked to enroll again next time they sign in.");
+    load();
   }
 
   const presentLikeCount = attendanceCounts.present + attendanceCounts.late + attendanceCounts.veryLate;
@@ -146,6 +170,57 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
               </div>
             </div>
 
+            {/* Added alongside reset-biometric-enrollment: shows what the
+                student currently has enrolled (method + device(s), if any),
+                and — Super Coordinator only, per the security reasoning in
+                that edge function's header comment — a reset action for a
+                lost/replaced device or a selfie that's stopped matching.
+                Read-only for every other coordinator; students themselves
+                can never trigger this at all, only see their own status
+                (see Settings.tsx). */}
+            <div className="mb-6">
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="icon-tile h-7 w-7 rounded-lg">
+                  <Fingerprint size={14} strokeWidth={2.5} />
+                </span>
+                <p className="text-sm font-semibold text-ink-900">Biometric check-in</p>
+              </div>
+              {student.biometric_enrolled_at ? (
+                <div className="inset-panel flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 text-sm">
+                    <p className="font-semibold text-ink-900">
+                      {student.verification_method === 'webauthn' ? 'Fingerprint / Face ID' : student.verification_method === 'selfie' ? 'Selfie match' : '—'}
+                    </p>
+                    <p className="mt-0.5 text-xs text-ink-500">Enrolled {new Date(student.biometric_enrolled_at).toLocaleDateString()}</p>
+                    {student.verification_method === 'webauthn' && (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {credentials.length === 0 ? (
+                          <span className="text-xs text-ink-400">No devices on file (may have been removed).</span>
+                        ) : (
+                          credentials.map((c) => (
+                            <span key={c.id} className="chip py-0.5">
+                              <Smartphone size={11} /> {c.device_label ?? 'Unnamed device'}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {coordinator?.is_super_coordinator && (
+                    <button
+                      onClick={() => setConfirmingReset(true)}
+                      className="theme-danger-btn btn-secondary shrink-0 self-start !text-status-expired hover:!border-status-expired/40 px-3 py-1.5 text-xs sm:self-auto"
+                    >
+                      <ShieldOff size={13} />
+                      Reset enrollment
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="rounded-xl2 border border-dashed border-surface-line py-4 text-center text-xs text-ink-400">Not yet enrolled.</p>
+              )}
+            </div>
+
             <div>
               <div className="mb-3 flex items-center gap-2.5">
                 <span className="icon-tile h-7 w-7 rounded-lg">
@@ -178,6 +253,21 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
             </div>
           </>
         )}
+      </div>
+
+      {/* Wrapped so a click on ConfirmDialog's own backdrop (which cancels
+          just the confirm dialog) doesn't also bubble up to this modal's
+          overlay onClick and close the whole student profile behind it —
+          ConfirmDialog isn't portaled, so it sits inside this DOM subtree. */}
+      <div onClick={(e) => e.stopPropagation()}>
+        <ConfirmDialog
+          open={confirmingReset}
+          title="Reset biometric enrollment?"
+          message={`${profile?.full_name ?? 'This student'} will be signed out of their current biometric setup and asked to enroll a device or selfie again before their next check-in. This can't be undone.`}
+          confirmLabel={resetting ? 'Resetting…' : 'Reset enrollment'}
+          onConfirm={handleResetBiometric}
+          onCancel={() => setConfirmingReset(false)}
+        />
       </div>
     </div>
   );

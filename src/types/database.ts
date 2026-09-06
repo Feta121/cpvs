@@ -47,6 +47,18 @@ export interface Student {
   biometric_enrolled_at: string | null;
 }
 
+/** Added in migration 0014. A student may enroll more than one device for
+ * WebAuthn (fingerprint/Face ID) check-in verification. */
+export interface WebauthnCredential {
+  id: string;
+  student_id: string;
+  credential_id: string;
+  public_key: string;
+  counter: number;
+  device_label: string | null;
+  created_at: string;
+}
+
 export interface Coordinator {
   id: string;
   department: string | null;

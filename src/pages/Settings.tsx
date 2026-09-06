@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sun, Moon, Sparkles, Download, Share, RefreshCw, CheckCircle2, KeyRound, Bell, BellOff, Info, LogOut, type LucideIcon } from 'lucide-react';
+import { Sun, Moon, Sparkles, Download, Share, RefreshCw, CheckCircle2, KeyRound, Bell, BellOff, Info, LogOut, Fingerprint, Smartphone, type LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme, ThemePreference } from '../theme/ThemeProvider';
 import { useToast } from '../context/ToastContext';
 import { useInstallPrompt, getInstallInstructions } from '../hooks/useInstallPrompt';
 import { getNotificationPermission, requestNotificationPermission } from '../utils/pushNotifications';
+import { supabase } from '../lib/supabase';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import type { WebauthnCredential } from '../types/database';
 
 /** `swatch` is a fixed two-colour preview of each theme's surface + accent.
  * It's deliberately hardcoded rather than read from CSS variables: the point
@@ -179,11 +181,22 @@ function NotificationRow() {
 }
 
 export default function Settings() {
-  const { profile, signOut } = useAuth();
+  const { profile, student, signOut } = useAuth();
   const { preference, setPreference } = useTheme();
   const navigate = useNavigate();
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [credentials, setCredentials] = useState<WebauthnCredential[]>([]);
+
+  useEffect(() => {
+    if (student?.verification_method !== 'webauthn') return;
+    supabase
+      .from('webauthn_credentials')
+      .select('*')
+      .eq('student_id', student.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setCredentials(data ?? []));
+  }, [student?.id, student?.verification_method]);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -243,6 +256,54 @@ export default function Settings() {
       <SettingsSection icon={Bell} title="Notifications">
         <NotificationRow />
       </SettingsSection>
+
+      {profile?.role === 'student' && (
+        <SettingsSection
+          icon={Fingerprint}
+          title="Biometric check-in"
+          description="What CPVS uses to confirm it's really you at check-in time."
+        >
+          {student?.biometric_enrolled_at ? (
+            <div className="inset-panel flex items-center gap-3.5 p-4">
+              <div className="icon-tile-accent h-11 w-11 shrink-0 rounded-xl">
+                <Fingerprint size={18} strokeWidth={2.25} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink-900">
+                  {student.verification_method === 'webauthn' ? 'Fingerprint / Face ID' : 'Selfie match'}
+                </p>
+                <p className="text-sm text-ink-500">Enrolled {new Date(student.biometric_enrolled_at).toLocaleDateString()}</p>
+                {student.verification_method === 'webauthn' && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {credentials.length === 0 ? (
+                      <span className="text-xs text-ink-400">No devices on file.</span>
+                    ) : (
+                      credentials.map((c) => (
+                        <span key={c.id} className="chip py-0.5">
+                          <Smartphone size={11} /> {c.device_label ?? 'Unnamed device'}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                )}
+                {/* Deliberately no "change device" / "re-enroll" action here
+                    — per how this feature is scoped, a student can never
+                    reset this themselves (that's the whole point: it's the
+                    thing proving check-ins are genuinely them, so it can't
+                    be self-service). Lost or replaced your device? A Super
+                    Coordinator can reset it from your student profile;
+                    you'll be asked to enroll again automatically next time
+                    you sign in after that. */}
+                <p className="mt-2 text-xs leading-relaxed text-ink-400">
+                  Lost your device or need to switch to a new one? Ask your coordinator — only a Super Coordinator can reset this, and you'll be walked through enrolling again right after.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-xl2 border border-dashed border-surface-line py-4 text-center text-sm text-ink-400">Not enrolled yet.</p>
+          )}
+        </SettingsSection>
+      )}
 
       <SettingsSection icon={KeyRound} title="Account">
         <div className="space-y-4">

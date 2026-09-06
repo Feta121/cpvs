@@ -195,7 +195,16 @@ export default function Settings() {
       .select('*')
       .eq('student_id', student.id)
       .order('created_at', { ascending: false })
-      .then(({ data }) => setCredentials(data ?? []));
+      .then(({ data, error }) => {
+        // Was silently swallowed before — an empty array here looked
+        // identical whether there were genuinely no devices or the query
+        // itself failed for some other reason, with nothing to tell the
+        // two apart. Logging it won't fix a real failure, but it turns a
+        // silent "No devices on file" into something checkable in the
+        // console instead of a dead end.
+        if (error) console.error('[CPVS] Failed to load webauthn credentials:', error.message);
+        setCredentials(data ?? []);
+      });
   }, [student?.id, student?.verification_method]);
 
   async function handleSignOut() {

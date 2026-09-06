@@ -37,7 +37,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
 
   async function load() {
     setLoading(true);
-    const [{ data: studentData }, profileMap, { data: rotationData }, { data: attendanceData }, { data: appealData }, { data: credentialData }] = await Promise.all([
+    const [{ data: studentData }, profileMap, { data: rotationData }, { data: attendanceData }, { data: appealData }, { data: credentialData, error: credentialError }] = await Promise.all([
       supabase.from('students').select('*').eq('id', studentId).maybeSingle(),
       fetchProfilesById([studentId]),
       supabase.from('rotations').select('*, hospital:hospitals(*)').eq('student_id', studentId).order('start_date', { ascending: false }),
@@ -45,6 +45,12 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
       supabase.from('appeals').select('*').eq('student_id', studentId).order('created_at', { ascending: false }),
       supabase.from('webauthn_credentials').select('*').eq('student_id', studentId).order('created_at', { ascending: false }),
     ]);
+    // Same reasoning as the identical fix in Settings.tsx: an empty
+    // credentials array used to look the same whether there really were no
+    // devices or the query itself failed — this at least makes the second
+    // case checkable in the console instead of indistinguishable from the
+    // first.
+    if (credentialError) console.error('[CPVS] Failed to load webauthn credentials:', credentialError.message);
 
     setStudent(studentData ?? null);
     setProfile(profileMap.get(studentId) ?? null);

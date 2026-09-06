@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Fingerprint, Camera, Loader2, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Fingerprint, Camera, Loader2, ShieldCheck, RefreshCw, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
@@ -15,13 +15,14 @@ import { extractFaceDescriptor, captureFrame } from '../../utils/faceRecognition
  * rest of the app's chrome/permissions are relevant.
  */
 export default function BiometricEnrollment() {
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, signOut } = useAuth();
   const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
 
   const [checking, setChecking] = useState(true);
   const [supportsDevice, setSupportsDevice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   // Selfie fallback state
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -110,6 +111,12 @@ export default function BiometricEnrollment() {
     navigate('/student', { replace: true });
   }
 
+  async function handleSignOut() {
+    setSigningOut(true);
+    await signOut();
+    navigate('/login', { replace: true });
+  }
+
   if (checking) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-muted">
@@ -121,6 +128,22 @@ export default function BiometricEnrollment() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-muted px-4 py-10">
       <div className="w-full max-w-md">
+        {/* This page is a required stop for an unenrolled student — there's
+            no sidebar/logout here since it isn't wrapped in AppShell (see
+            the file-level comment above) — but a student can still land
+            here with an already-expired session (e.g. right after a Super
+            Coordinator resets their enrollment while they were signed in
+            elsewhere), where "Enroll this device" would just fail with the
+            same session error with no way out. This is the way out. */}
+        <button
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="mb-4 flex items-center gap-1.5 text-xs font-medium text-ink-500 transition-colors hover:text-ink-700"
+        >
+          {signingOut ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}
+          Back to sign in
+        </button>
+
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-vital-600 text-onAccent shadow-glass">
             <ShieldCheck size={22} />

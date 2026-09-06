@@ -20,6 +20,7 @@ import ChangePassword from './pages/ChangePassword';
 const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard'));
 const StudentAttendance = lazy(() => import('./pages/student/Attendance'));
 const AttendanceHistory = lazy(() => import('./pages/student/AttendanceHistory'));
+const RotationHistory = lazy(() => import('./pages/student/RotationHistory'));
 const StudentAppeals = lazy(() => import('./pages/student/Appeals'));
 const StudentNotifications = lazy(() => import('./pages/student/Notifications'));
 const StudentProfile = lazy(() => import('./pages/student/Profile'));
@@ -115,6 +116,14 @@ export default function App() {
         element={
           <ProtectedRoute allow={['student']}>
             <AppShell><Lazy><AttendanceHistory /></Lazy></AppShell>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/student/rotations"
+        element={
+          <ProtectedRoute allow={['student']}>
+            <AppShell><Lazy><RotationHistory /></Lazy></AppShell>
           </ProtectedRoute>
         }
       />

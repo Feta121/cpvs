@@ -41,6 +41,7 @@ const studentNav: NavItem[] = [
   { to: '/student', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/student/attendance', label: 'Check In', icon: MapPin },
   { to: '/student/history', label: 'Attendance History', icon: CalendarClock },
+  { to: '/student/rotations', label: 'Rotation History', icon: Repeat },
   { to: '/student/appeals', label: 'Appeals', icon: FileWarning },
   { to: '/student/notifications', label: 'Notifications', icon: Bell },
   { to: '/student/profile', label: 'Profile', icon: User },

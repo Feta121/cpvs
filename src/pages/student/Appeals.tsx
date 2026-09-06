@@ -139,7 +139,20 @@ export default function StudentAppeals() {
                 <input
                   type="file"
                   onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  className="block w-full cursor-pointer rounded-xl2 border border-dashed border-surface-line bg-surface-alt/40 p-2.5 text-sm text-ink-500 transition-colors duration-300 hover:border-clinical-400/70 file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-clinical-500/12 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-clinical-700"
+                  // Was `file:bg-clinical-500/12 file:text-clinical-700` — a
+                  // translucent tint with primary-colored text. That's fine
+                  // in light/dark, but "clinical" is bright LIME in the
+                  // Aether theme (see tailwind.config.js), so it became
+                  // low-contrast lime-on-lime-tint text. Worse, without
+                  // `file:appearance-none`, some browsers render their own
+                  // native gray/white button chrome underneath our
+                  // background entirely, which is what actually produced
+                  // the white pill with barely-readable text. Switched to
+                  // the same solid bg-clinical-600 + text-onPrimary pairing
+                  // .btn-primary already uses — `onPrimary` exists
+                  // specifically to stay readable against "clinical" in
+                  // every theme, lime included.
+                  className="block w-full cursor-pointer rounded-xl2 border border-dashed border-surface-line bg-surface-alt/40 p-2.5 text-sm text-ink-500 transition-colors duration-300 hover:border-clinical-400/70 file:mr-3 file:cursor-pointer file:appearance-none file:rounded-lg file:border-0 file:bg-clinical-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-onPrimary"
                 />
               </div>
 

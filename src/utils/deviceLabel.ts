@@ -40,3 +40,49 @@ export function friendlyDeviceLabel(raw: string | null | undefined): string {
 
   return `${browser} on ${os}`;
 }
+
+/**
+ * Adds the real device model to a friendly label when the browser will
+ * hand it over — e.g. "Chrome on Android (SM-M167F)" — using the
+ * User-Agent Client Hints API (`navigator.userAgentData`), NOT a hardcoded
+ * code→marketing-name table.
+ *
+ * That's a deliberate choice, not a shortcut: Samsung alone has hundreds of
+ * model codes with regional/carrier suffixes (SM-S911B vs SM-S911U vs
+ * SM-S911N are three different real variants of what's sold as "the same"
+ * phone), the mapping changes with every new phone launch, and even public
+ * reference sources disagree with each other on some codes. Shipping a
+ * table risks confidently showing the WRONG phone name, which is worse
+ * than showing the raw model code — the code is never wrong, because it
+ * comes straight from the OS rather than a guess. A student can still
+ * recognize "SM-M167F" as their own phone by checking Settings → About
+ * phone, the same way the many "how do I identify my Samsung" guides out
+ * there tell people to do it — this just isn't pretending to translate it
+ * for them when that translation isn't reliable.
+ *
+ * Real limits, worth knowing:
+ *   - Chromium-only (Chrome/Edge/Samsung Internet on Android). Safari,
+ *     Firefox, and every iOS browser don't support this at all — iOS never
+ *     exposed a real model to begin with, so those callers just keep
+ *     getting the plain friendlyDeviceLabel() below with no model suffix.
+ *   - Requires a secure context (https), which this app already is.
+ *   - Some browsers require the page to explicitly request high-entropy
+ *     values (can't just read `navigator.userAgentData.model` directly) —
+ *     that's what `getHighEntropyValues` below is for.
+ */
+export async function friendlyDeviceLabelWithModel(): Promise<string> {
+  const base = friendlyDeviceLabel(navigator.userAgent);
+
+  const uaData = (navigator as any).userAgentData;
+  if (!uaData?.getHighEntropyValues) return base;
+
+  try {
+    const { model } = await uaData.getHighEntropyValues(['model']);
+    return model ? `${base} (${model})` : base;
+  } catch {
+    // Some browsers reject this outright depending on permissions policy —
+    // fall back to the base label rather than let enrollment itself fail
+    // over a label.
+    return base;
+  }
+}

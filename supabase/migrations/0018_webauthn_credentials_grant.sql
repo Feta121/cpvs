@@ -1,0 +1,41 @@
+-- ============================================================================
+-- Migration 0018 — grant the missing SELECT on webauthn_credentials
+--
+-- THE BUG: migration 0014 created webauthn_credentials, enabled RLS on it,
+-- and added two SELECT policies (a student reading their own row, a
+-- coordinator reading any row) — but never actually ran
+-- `grant select on webauthn_credentials to authenticated`. In Postgres,
+-- RLS policies RESTRICT an already-granted privilege; they do not grant one
+-- by themselves. Every other table with student/coordinator-facing RLS in
+-- this schema has an explicit grant somewhere (see e.g. migration 0006 for
+-- special_practice_days/clinical_days_config, or 0008 for system_status) —
+-- this table just never got its own when it was created.
+--
+-- THE SYMPTOM: this is NOT "RLS filtered the rows to zero", which is
+-- indistinguishable from "there genuinely are no rows" from the app's point
+-- of view. It's a flat rejection — Postgres error 42501, "permission denied
+-- for table webauthn_credentials" — surfaced as an HTTP 403 from PostgREST,
+-- before RLS is ever evaluated. A student who successfully enrolled (their
+-- biometric_enrolled_at IS set — that write goes through the service-role
+-- key inside the edge function, which bypasses grants and RLS entirely, so
+-- IT never failed) would still see "No devices on file" when the app tried
+-- to read their own device back, and a coordinator looking at that same
+-- student's profile would see the identical thing for the identical reason.
+--
+-- Writes to this table are deliberately NOT granted here. Every write
+-- already goes exclusively through a service-role edge function
+-- (webauthn-register-verify inserts a device; reset-biometric-enrollment
+-- deletes them) — a student or coordinator was never meant to write this
+-- table directly, and this migration doesn't change that; it only fixes
+-- reading a row back after the edge function already wrote it.
+-- ============================================================================
+
+grant select on webauthn_credentials to authenticated;
+
+-- Verification (run as the SQL Editor, which bypasses grants/RLS, so this
+-- only confirms the grant itself exists — not that the app can now read a
+-- specific row, which you'd confirm from the app's own Settings page):
+--   select grantee, privilege_type
+--   from information_schema.role_table_grants
+--   where table_name = 'webauthn_credentials';
+--   -- should now include a row: authenticated | SELECT

@@ -6,6 +6,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
+import { averageDurationMinutes, formatDurationMinutes } from '../../utils/duration';
 import { addisToday } from '../../utils/addisDate';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import StatCard from '../../components/ui/StatCard';
@@ -50,6 +51,7 @@ export default function CoordinatorDashboard() {
     assigned: 0,
     totalHospitals: 0,
     activeHospitals: 0,
+    avgDurationMinutes: null as number | null,
   });
   const [runningCheck, setRunningCheck] = useState(false);
   const [runningBackfill, setRunningBackfill] = useState(false);
@@ -91,6 +93,7 @@ export default function CoordinatorDashboard() {
       { count: totalHospitals },
       { count: activeHospitals },
       { data: activeRotationRows },
+      { data: durationAttendance },
     ] = await Promise.all([
       supabase.from('system_status').select('*').eq('id', true).maybeSingle(),
       supabase.from('students').select('batch'),
@@ -102,6 +105,11 @@ export default function CoordinatorDashboard() {
       supabase.from('hospitals').select('id', { count: 'exact', head: true }),
       supabase.from('hospitals').select('id', { count: 'exact', head: true }).eq('is_active', true),
       supabase.from('rotations').select('student_id').eq('status', 'active'),
+      // Program-wide "avg. time on-site" — deliberately NOT scoped to
+      // `today` like todayAttendance above (a single day's sample is too
+      // small to mean anything); this is all-time, batch-filtered the same
+      // way scopedActiveRotations below is.
+      supabase.from('attendance').select('student_id, check_in_time, check_out_time'),
     ]);
 
     setLastRun({
@@ -146,6 +154,9 @@ export default function CoordinatorDashboard() {
       assigned: new Set(scopedActiveRotations.map((r) => r.student_id)).size,
       totalHospitals: totalHospitals ?? 0,
       activeHospitals: activeHospitals ?? 0,
+      avgDurationMinutes: averageDurationMinutes(
+        (durationAttendance ?? []).filter((a) => !batchStudentIds || batchStudentIds.has(a.student_id))
+      ),
     });
 
     // ---- Everything below is new: analytics, compliance, risk, activity ----
@@ -531,6 +542,13 @@ export default function CoordinatorDashboard() {
             hint="View roster"
           />
           <StatCard label="Batch size" value={batches.length} icon={Layers} tone="clinical" hint="Number of batches in the program" />
+          <StatCard
+            label="Avg. time on-site"
+            value={pipeline.avgDurationMinutes !== null ? formatDurationMinutes(pipeline.avgDurationMinutes) : '—'}
+            icon={Clock}
+            tone="clinical"
+            hint={batch === 'all' ? 'Across every completed check-out, all batches' : `Across every completed check-out, batch ${batch}`}
+          />
         </div>
       </div>
 

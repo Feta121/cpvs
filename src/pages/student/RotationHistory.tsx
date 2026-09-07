@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Hospital as HospitalIcon, UserRound, ChevronDown, FileWarning, Repeat, Building2 } from 'lucide-react';
+import { Hospital as HospitalIcon, UserRound, ChevronDown, FileWarning, Repeat, Building2, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import { statusColors } from '../../utils/geofence';
+import { averageDurationMinutes, formatDurationMinutes } from '../../utils/duration';
 import Badge from '../../components/ui/Badge';
 import FullScreenLoader from '../../components/ui/FullScreenLoader';
 import type { Rotation, Hospital, Profile, AttendanceRecord, Appeal, AttendanceStatus, RotationStatus } from '../../types/database';
@@ -122,6 +123,12 @@ export default function RotationHistory() {
 
   const totalHospitals = useMemo(() => new Set(rotations.map((r) => r.hospital_id)).size, [rotations]);
   const lifetimePct = lifetimeAttendance.total > 0 ? Math.round((lifetimeAttendance.present / lifetimeAttendance.total) * 100) : null;
+  // "Throughout his clinical practice" — every attendance row across every
+  // rotation this student has ever had, not scoped to any one hospital.
+  const overallAvgMinutes = useMemo(
+    () => averageDurationMinutes(Array.from(attendanceByRotation.values()).flat()),
+    [attendanceByRotation]
+  );
 
   if (loading) return <FullScreenLoader label="Loading rotation history…" />;
 
@@ -132,11 +139,12 @@ export default function RotationHistory() {
         <p className="mt-1 text-sm text-ink-500">Every hospital assignment you've had, past and current, with attendance for each.</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: 'Rotations', value: rotations.length },
           { label: 'Hospitals', value: totalHospitals },
           { label: 'Lifetime %', value: lifetimePct !== null ? `${lifetimePct}%` : '—' },
+          { label: 'Avg. on-site', value: overallAvgMinutes !== null ? formatDurationMinutes(overallAvgMinutes) : '—' },
         ].map((s) => (
           <div key={s.label} className="surface-card p-4 text-center">
             <p className="stat-value text-2xl sm:text-3xl">{s.value}</p>
@@ -170,6 +178,7 @@ export default function RotationHistory() {
               excused: records.filter((a) => a.status === 'excused').length,
             };
             const sortedRecords = [...records].sort((a, b) => a.date.localeCompare(b.date));
+            const avgMinutes = averageDurationMinutes(records);
 
             return (
               <div key={r.id} className="surface-card overflow-hidden">
@@ -265,6 +274,17 @@ export default function RotationHistory() {
                         <Building2 size={12} /> {r.hospital.address}
                       </p>
                     )}
+
+                    {/* "For the student but for the selected rotation" — this
+                        block only reflects THIS rotation's own records, not
+                        the whole-practice figure in the summary strip above
+                        (that one's computed across every rotation combined).
+                        Expanding a card is effectively "selecting" it. */}
+                    <div className="mb-4 flex items-center gap-2 rounded-xl2 bg-surface-alt/60 px-3.5 py-2.5 text-sm ring-1 ring-inset ring-surface-line">
+                      <Clock size={14} className="shrink-0 text-ink-400" />
+                      <span className="text-ink-500">Avg. time on-site at {r.hospital?.name ?? 'this hospital'}:</span>
+                      <span className="font-semibold tabular-nums text-ink-900">{avgMinutes !== null ? formatDurationMinutes(avgMinutes) : 'No completed check-outs yet'}</span>
+                    </div>
 
                     <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
                       {[

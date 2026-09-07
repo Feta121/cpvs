@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
-import { X, Repeat, CalendarCheck2, FileWarning, TrendingUp, Fingerprint, ShieldOff, Smartphone, IdCard, Building2, Mail, GraduationCap } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { X, Repeat, CalendarCheck2, FileWarning, TrendingUp, Fingerprint, ShieldOff, Smartphone, IdCard, Building2, Mail, GraduationCap, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { averageDurationMinutes, formatDurationMinutes } from '../../utils/duration';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import FullScreenLoader from '../ui/FullScreenLoader';
-import type { Student, Profile, Rotation, Hospital, Appeal, AttendanceStatus, WebauthnCredential } from '../../types/database';
+import type { Student, Profile, Rotation, Hospital, Appeal, AttendanceRecord, AttendanceStatus, WebauthnCredential } from '../../types/database';
 
 const PRESENT_LIKE: AttendanceStatus[] = ['present', 'late', 'very_late'];
 
@@ -25,6 +26,11 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rotations, setRotations] = useState<(Rotation & { hospital: Hospital | null })[]>([]);
   const [attendanceCounts, setAttendanceCounts] = useState({ total: 0, present: 0, late: 0, veryLate: 0, absent: 0, excused: 0 });
+  // Kept separately from attendanceCounts above (which only needs status)
+  // because duration needs the raw check_in_time/check_out_time — and per-
+  // rotation duration needs rotation_id to group by, hence the full rows
+  // rather than another narrower select.
+  const [attendanceRows, setAttendanceRows] = useState<Pick<AttendanceRecord, 'rotation_id' | 'check_in_time' | 'check_out_time'>[]>([]);
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [credentials, setCredentials] = useState<WebauthnCredential[]>([]);
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -41,7 +47,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
       supabase.from('students').select('*').eq('id', studentId).maybeSingle(),
       fetchProfilesById([studentId]),
       supabase.from('rotations').select('*, hospital:hospitals(*)').eq('student_id', studentId).order('start_date', { ascending: false }),
-      supabase.from('attendance').select('status').eq('student_id', studentId),
+      supabase.from('attendance').select('status, rotation_id, check_in_time, check_out_time').eq('student_id', studentId),
       supabase.from('appeals').select('*').eq('student_id', studentId).order('created_at', { ascending: false }),
       supabase.from('webauthn_credentials').select('*').eq('student_id', studentId).order('created_at', { ascending: false }),
     ]);
@@ -59,6 +65,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
     setCredentials(credentialData ?? []);
 
     const rows = attendanceData ?? [];
+    setAttendanceRows(rows);
     setAttendanceCounts({
       total: rows.length,
       present: rows.filter((r) => r.status === 'present').length,
@@ -70,6 +77,23 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
 
     setLoading(false);
   }
+
+  // "Throughout his clinical practice" — every attendance row across every
+  // rotation, not scoped to any one hospital.
+  const overallAvgMinutes = useMemo(() => averageDurationMinutes(attendanceRows), [attendanceRows]);
+  // "For the selected rotation" — grouped by rotation_id so each row in the
+  // rotation list below can show its own figure.
+  const avgMinutesByRotation = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof averageDurationMinutes>>();
+    const byRotation = new Map<string, typeof attendanceRows>();
+    attendanceRows.forEach((r) => {
+      const list = byRotation.get(r.rotation_id) ?? [];
+      list.push(r);
+      byRotation.set(r.rotation_id, list);
+    });
+    byRotation.forEach((records, rotationId) => map.set(rotationId, averageDurationMinutes(records)));
+    return map;
+  }, [attendanceRows]);
 
   async function handleResetBiometric() {
     setResetting(true);
@@ -103,6 +127,20 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
           <div className="p-6 py-8 text-center text-sm text-ink-500">Student not found.</div>
         ) : (
           <>
+            {/* Close button moved OUTSIDE the header banner below — it used
+                to be absolutely positioned inside that banner, which also
+                has `overflow-hidden` (needed to clip the decorative blur
+                blobs). An absolutely-positioned child sitting right at the
+                edge of an overflow-hidden ancestor is a classic way to end
+                up with a button that's visually present but not reliably
+                clickable, depending on exact box-sizing. Rendering it here
+                instead — a sibling of the banner, not a child of it —
+                removes that risk entirely rather than trying to debug
+                exactly where the hit-testing broke. */}
+            <button onClick={onClose} className="btn-icon absolute right-4 top-4 z-10 h-8 w-8" aria-label="Close">
+              <X size={16} />
+            </button>
+
             {/* Header banner — was a plain flat row at the same padding
                 level as everything below it; pulled into its own tinted
                 section with the app's usual soft blurred accent blobs (see
@@ -111,9 +149,6 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
             <div className="relative overflow-hidden rounded-t-xl3 border-b border-surface-line bg-surface-alt/30 p-6">
               <span className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full bg-clinical-500/10 blur-3xl" />
               <span className="pointer-events-none absolute -bottom-20 -right-12 h-56 w-56 rounded-full bg-vital-500/10 blur-3xl" />
-              <button onClick={onClose} className="btn-icon absolute right-4 top-4 h-8 w-8" aria-label="Close">
-                <X size={16} />
-              </button>
               <div className="relative flex items-center gap-4 pr-10">
                 <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-vital-400 to-clinical-500 text-2xl font-bold text-onAccent shadow-glow-accent ring-4 ring-surface">
                   {profile?.photo_url ? (
@@ -174,9 +209,14 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
                   <TrendingUp size={14} strokeWidth={2.5} />
                 </span>
                 <p className="text-sm font-semibold text-ink-900">Attendance</p>
-                {attendancePct !== null && (
-                  <span className="chip ml-auto py-0.5 tabular-nums">{attendancePct}% overall</span>
-                )}
+                <div className="ml-auto flex items-center gap-1.5">
+                  {overallAvgMinutes !== null && (
+                    <span className="chip py-0.5 tabular-nums"><Clock size={11} /> Avg {formatDurationMinutes(overallAvgMinutes)}</span>
+                  )}
+                  {attendancePct !== null && (
+                    <span className="chip py-0.5 tabular-nums">{attendancePct}% overall</span>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-5 gap-2 text-center text-xs">
                 <div className="rounded-xl bg-status-present/10 p-2.5 ring-1 ring-inset ring-status-present/20"><p className="stat-value text-base text-status-present">{attendanceCounts.present}</p><p className="mt-0.5 text-ink-500">Present</p></div>
@@ -259,18 +299,28 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
                 <p className="rounded-xl2 border border-dashed border-surface-line py-6 text-center text-sm text-ink-400">No rotations assigned yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {rotations.map((r) => (
-                    <div
-                      key={r.id}
-                      className="flex items-center justify-between gap-3 rounded-xl2 border border-surface-line bg-surface-alt/40 px-3.5 py-2.5 text-sm transition-all duration-300 ease-spring hover:border-transparent hover:bg-surface hover:shadow-lift"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-ink-900">{r.hospital?.name ?? '—'}</p>
-                        <p className="mt-0.5 text-xs tabular-nums text-ink-500">{r.start_date} → {r.end_date}</p>
+                  {rotations.map((r) => {
+                    const rotationAvg = avgMinutesByRotation.get(r.id) ?? null;
+                    return (
+                      <div
+                        key={r.id}
+                        className="flex items-center justify-between gap-3 rounded-xl2 border border-surface-line bg-surface-alt/40 px-3.5 py-2.5 text-sm transition-all duration-300 ease-spring hover:border-transparent hover:bg-surface hover:shadow-lift"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-ink-900">{r.hospital?.name ?? '—'}</p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs tabular-nums text-ink-500">
+                            <span>{r.start_date} → {r.end_date}</span>
+                            {rotationAvg !== null && (
+                              <span className="flex items-center gap-1 text-ink-400">
+                                <Clock size={10} /> avg {formatDurationMinutes(rotationAvg)}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <Badge tone={r.status === 'active' ? 'present' : r.status === 'cancelled' ? 'expired' : 'clinical'}>{r.status}</Badge>
                       </div>
-                      <Badge tone={r.status === 'active' ? 'present' : r.status === 'cancelled' ? 'expired' : 'clinical'}>{r.status}</Badge>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

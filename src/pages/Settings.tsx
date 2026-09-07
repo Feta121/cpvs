@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { useInstallPrompt, getInstallInstructions } from '../hooks/useInstallPrompt';
 import { getNotificationPermission, requestNotificationPermission } from '../utils/pushNotifications';
 import { supabase } from '../lib/supabase';
+import { friendlyDeviceLabel } from '../utils/deviceLabel';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import type { WebauthnCredential } from '../types/database';
 
@@ -289,7 +290,7 @@ export default function Settings() {
                     ) : (
                       credentials.map((c) => (
                         <span key={c.id} className="chip py-0.5">
-                          <Smartphone size={11} /> {c.device_label ?? 'Unnamed device'}
+                          <Smartphone size={11} /> {friendlyDeviceLabel(c.device_label)}
                         </span>
                       ))
                     )}

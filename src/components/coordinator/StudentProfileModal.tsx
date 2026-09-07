@@ -6,6 +6,7 @@ import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { averageDurationMinutes, formatDurationMinutes } from '../../utils/duration';
+import { friendlyDeviceLabel } from '../../utils/deviceLabel';
 import Badge from '../../components/ui/Badge';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import FullScreenLoader from '../ui/FullScreenLoader';
@@ -266,7 +267,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
                         ) : (
                           credentials.map((c) => (
                             <span key={c.id} className="chip py-0.5">
-                              <Smartphone size={11} /> {c.device_label ?? 'Unnamed device'}
+                              <Smartphone size={11} /> {friendlyDeviceLabel(c.device_label)}
                             </span>
                           ))
                         )}

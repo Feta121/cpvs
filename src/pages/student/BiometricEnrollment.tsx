@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
 import { canUseDeviceBiometrics, enrollDeviceBiometric } from '../../utils/webauthn';
 import { extractFaceDescriptor, captureFrame } from '../../utils/faceRecognition';
+import { friendlyDeviceLabel } from '../../utils/deviceLabel';
 
 /**
  * Forced landing page for any student who hasn't completed biometric
@@ -43,7 +44,7 @@ export default function BiometricEnrollment() {
 
   async function handleDeviceEnroll() {
     setSubmitting(true);
-    const result = await enrollDeviceBiometric(navigator.userAgent.slice(0, 60));
+    const result = await enrollDeviceBiometric(friendlyDeviceLabel(navigator.userAgent));
     setSubmitting(false);
     if (!result.success) {
       showError(result.error ?? 'Enrollment failed.');

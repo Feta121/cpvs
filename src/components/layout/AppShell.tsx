@@ -1,4 +1,5 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -318,6 +319,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
   // `permissions` field, so every item passes this filter unchanged.
   const nav = rawNav.filter((item) => !item.permissions || hasAny(item.permissions));
   const [collapsed, setCollapsed] = useState(false);
+  // Was a CSS absolute-positioned flyout living inside the scrollable nav
+  // (overflow-y-auto) — deliberately positioned via `left-full` to escape
+  // the 84px collapsed rail visually. The bug: per the CSS overflow spec,
+  // once ONE axis's overflow is non-`visible`, the OTHER axis is forced to
+  // compute as `auto` too rather than staying `visible` — so `overflow-y:
+  // auto` silently turned `overflow-x` into `auto` as well, and the
+  // tooltip's intentional rightward overflow triggered a real horizontal
+  // scrollbar across the whole collapsed sidebar. Fixed by portaling the
+  // tooltip to document.body instead — `position: fixed` there is
+  // unaffected by any ancestor's overflow, and the tooltip no longer
+  // contributes to the nav's scrollable content size at all.
+  const [collapsedTooltip, setCollapsedTooltip] = useState<{ label: string; top: number; left: number } | null>(null);
   const [search, setSearch] = useState('');
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
 
@@ -373,7 +386,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 {showSectionHeader && collapsed && index !== 0 && (
                   <div className="my-3 border-t border-surface-line" />
                 )}
-                <div className="group relative">
+                <div
+                  className="group relative"
+                  onMouseEnter={(e) => {
+                    if (!collapsed) return;
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setCollapsedTooltip({ label: item.label, top: r.top + r.height / 2, left: r.right + 10 });
+                  }}
+                  onMouseLeave={() => setCollapsedTooltip(null)}
+                >
                 <NavLink
                   to={item.to}
                   end={item.end}
@@ -384,21 +405,31 @@ export default function AppShell({ children }: { children: ReactNode }) {
                     collapsed && 'justify-center px-0'
                   )}
                 >
-                  {/* CHANGED: collapsed active state now renders as a solid
-                      filled badge (bg-clinical-600, matching the reference
-                      Thor sidebar's circular active-icon treatment) instead
-                      of reusing the expanded state's pale inset-0 pill —
-                      which, once collapsed removes the label text, just
-                      left an oddly-proportioned square around a lone icon
-                      rather than reading as a deliberate "selected" badge. */}
+                  {/* Collapsed active state is a small, CONTAINED badge (a
+                      fixed 40x40 square centered in the nav item) rather
+                      than a solid fill stretched across the item's full
+                      padding box — the previous full-bleed fill read as a
+                      loud, edge-to-edge block of color with no breathing
+                      room around it. Centering uses left-1/2/top-1/2 PLUS a
+                      fixed negative margin (-ml-5/-mt-5, i.e. -20px = half
+                      of the 40px box) rather than a -translate-x/y-1/2
+                      Tailwind class — this element has a layoutId, and
+                      Framer Motion animates it by writing its own transform
+                      directly via inline style, which silently overwrites
+                      any transform-based class the moment that animation
+                      runs (inline style always wins over a class). Margin
+                      doesn't touch the transform property, so it isn't
+                      clobbered the same way — see the identical reasoning
+                      already documented below for active-nav-glow, which
+                      hit this exact bug first. */}
                   {isActive && (
                     <motion.div
-                      layoutId="active-nav-pill"
+                      layoutId={collapsed ? 'active-nav-badge' : 'active-nav-pill'}
                       className={clsx(
-                        'absolute inset-0 rounded-xl',
+                        'absolute rounded-xl2',
                         collapsed
-                          ? 'bg-gradient-to-br from-clinical-500 to-clinical-600 shadow-glow'
-                          : 'bg-gradient-to-r from-clinical-500/16 via-clinical-500/10 to-vital-500/8 ring-1 ring-inset ring-clinical-500/25'
+                          ? 'left-1/2 top-1/2 -ml-5 -mt-5 h-10 w-10 bg-gradient-to-br from-clinical-500 to-clinical-600 shadow-glow'
+                          : 'inset-0 rounded-xl bg-gradient-to-r from-clinical-500/16 via-clinical-500/10 to-vital-500/8 ring-1 ring-inset ring-clinical-500/25'
                       )}
                       transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                     />
@@ -435,27 +466,26 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   />
                   {!collapsed && <span className="relative z-10 truncate">{item.label}</span>}
                 </NavLink>
-                {/* CHANGED: added a CSS-triangle arrow pointing back at the
-                    icon (border trick — transparent top/bottom/left,
-                    colored right, so the shape tapers to a point on the
-                    left) so the tooltip visually connects to the item it
-                    describes, matching the reference design, instead of
-                    floating as an unconnected label. Also nudges in from
-                    ml-3 to ml-2 on hover for a small slide-in instead of
-                    appearing static. */}
-                {collapsed && (
-                  <div className="pointer-events-none absolute left-full top-1/2 z-30 ml-3 -translate-y-1/2 opacity-0 transition-all duration-150 group-hover:ml-2 group-hover:opacity-100">
-                    <div className="relative whitespace-nowrap rounded-lg bg-ink-900 px-2.5 py-1.5 text-xs font-semibold text-surface shadow-float">
-                      <span className="absolute right-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-ink-900" />
-                      {item.label}
-                    </div>
-                  </div>
-                )}
                 </div>
               </div>
             );
           })}
         </nav>
+
+        {/* The collapsed-rail tooltip itself — portaled to document.body
+            (see the collapsedTooltip state comment above for why) rather
+            than rendered inline in the nav. Fixed positioning here is
+            immune to any ancestor's overflow/scroll, by design. */}
+        {collapsed && collapsedTooltip && createPortal(
+          <div
+            className="pointer-events-none fixed z-[100] -translate-y-1/2 whitespace-nowrap rounded-lg bg-ink-900 px-2.5 py-1.5 text-xs font-semibold text-surface shadow-float"
+            style={{ top: collapsedTooltip.top, left: collapsedTooltip.left }}
+          >
+            <span className="absolute right-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-ink-900" />
+            {collapsedTooltip.label}
+          </div>,
+          document.body
+        )}
 
         <div className="relative z-10 border-t border-surface-line p-3">
           <button

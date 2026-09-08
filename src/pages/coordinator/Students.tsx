@@ -34,6 +34,7 @@ export default function CoordinatorStudents() {
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resolvingFlagId, setResolvingFlagId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StudentRow | null>(null);
   const [batchFilter, setBatchFilter] = useState('all');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -134,6 +135,33 @@ export default function CoordinatorStudents() {
       return;
     }
     showSuccess('Student status updated.');
+    loadStudents();
+  }
+
+  /**
+   * The `late_attendance_concern` flag is set automatically by a database
+   * trigger (check_late_attendance_concern, migration 0011) once a student
+   * passes 4 late/very_late records within a single rotation — but nothing
+   * anywhere ever clears it back to false, so once tripped it stayed on the
+   * student's record permanently, even after the rotation ended or their
+   * attendance improved. This is a manual "acknowledge and clear" action —
+   * same direct client update pattern as updateStatus() above, relying on
+   * the same students_update RLS policy (a coordinator needs
+   * can_edit_students) rather than a dedicated edge function, since this
+   * isn't a sensitive credential like biometric enrollment — just a status
+   * flag. It only clears the flag itself; the late/very_late attendance
+   * records that caused it are untouched and still count toward
+   * attendance-percentage stats elsewhere.
+   */
+  async function resolveLateFlag(id: string) {
+    setResolvingFlagId(id);
+    const { error } = await supabase.from('students').update({ late_attendance_concern: false }).eq('id', id);
+    setResolvingFlagId(null);
+    if (error) {
+      showError('Unable to clear the flag. ' + error.message);
+      return;
+    }
+    showSuccess('Late attendance concern cleared.');
     loadStudents();
   }
 
@@ -294,7 +322,23 @@ export default function CoordinatorStudents() {
                       </Badge>
                     </td>
                     <td className="px-5 py-3">
-                      {s.late_attendance_concern ? <Badge tone="verylate">Late concern</Badge> : <span className="text-ink-300">—</span>}
+                      {s.late_attendance_concern ? (
+                        <button
+                          onClick={() => resolveLateFlag(s.id)}
+                          disabled={resolvingFlagId === s.id}
+                          title="Resolve — clears the flag, doesn't change any attendance record"
+                          className="group inline-flex items-center gap-1 rounded-full"
+                        >
+                          <Badge tone="verylate">Late concern</Badge>
+                          {resolvingFlagId === s.id ? (
+                            <Loader2 size={11} className="animate-spin text-ink-400" />
+                          ) : (
+                            <X size={11} className="text-ink-400 opacity-0 transition-opacity group-hover:opacity-100" />
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-ink-300">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-nowrap items-center gap-2">

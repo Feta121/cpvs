@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, Repeat, CalendarCheck2, FileWarning, TrendingUp, Fingerprint, ShieldOff, Smartphone, IdCard, Building2, Mail, GraduationCap, Clock } from 'lucide-react';
+import { X, Repeat, CalendarCheck2, FileWarning, TrendingUp, Fingerprint, ShieldOff, Smartphone, IdCard, Building2, Mail, GraduationCap, Clock, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchProfilesById } from '../../utils/fetchProfiles';
 import { invokeEdgeFunction } from '../../utils/invokeFunction';
@@ -36,6 +36,7 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
   const [credentials, setCredentials] = useState<WebauthnCredential[]>([]);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [resolvingFlag, setResolvingFlag] = useState(false);
 
   useEffect(() => {
     load();
@@ -109,6 +110,22 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
     load();
   }
 
+  // Same reasoning as Students.tsx's identical function — see the comment
+  // there. Direct client update via the existing students_update RLS
+  // policy, not an edge function; only clears the flag, doesn't touch the
+  // late/very_late attendance records that set it.
+  async function resolveLateFlag() {
+    setResolvingFlag(true);
+    const { error } = await supabase.from('students').update({ late_attendance_concern: false }).eq('id', studentId);
+    setResolvingFlag(false);
+    if (error) {
+      showError('Unable to clear the flag. ' + error.message);
+      return;
+    }
+    showSuccess('Late attendance concern cleared.');
+    load();
+  }
+
   const presentLikeCount = attendanceCounts.present + attendanceCounts.late + attendanceCounts.veryLate;
   const attendancePct = attendanceCounts.total > 0 ? Math.round((presentLikeCount / attendanceCounts.total) * 100) : null;
   const completedRotations = rotations.filter((r) => r.status === 'completed').length;
@@ -161,9 +178,23 @@ export default function StudentProfileModal({ studentId, onClose }: Props) {
                 <div className="min-w-0">
                   <h2 className="truncate font-display text-xl font-semibold tracking-tightest text-ink-900">{profile?.full_name ?? '(profile missing)'}</h2>
                   <p className="mt-0.5 text-sm text-ink-500">{student.program ?? student.department} · Year {student.year} · Batch {student.batch}</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Badge tone={student.status === 'active' ? 'present' : student.status === 'completed' ? 'clinical' : 'neutral'}>{student.status.replace('_', ' ')}</Badge>
-                    {student.late_attendance_concern && <Badge tone="verylate">Late concern</Badge>}
+                    {student.late_attendance_concern && (
+                      <button
+                        onClick={resolveLateFlag}
+                        disabled={resolvingFlag}
+                        title="Resolve — clears the flag, doesn't change any attendance record"
+                        className="group inline-flex items-center gap-1 rounded-full"
+                      >
+                        <Badge tone="verylate">Late concern</Badge>
+                        {resolvingFlag ? (
+                          <Loader2 size={11} className="animate-spin text-ink-400" />
+                        ) : (
+                          <X size={11} className="text-ink-400 opacity-0 transition-opacity group-hover:opacity-100" />
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
